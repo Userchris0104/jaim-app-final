@@ -715,6 +715,41 @@ export default function DashboardPage() {
             </div>
           </div>
         </div>
+
+        {/* Live Activity Banner */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="flex items-center gap-4 px-5 py-4">
+            <div className="flex items-center gap-2 text-gray-500 text-sm whitespace-nowrap">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+              <span className="font-medium text-gray-700">Live Activity</span>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <div className="flex gap-8 animate-marquee">
+                <span className="text-sm text-gray-500 whitespace-nowrap flex items-center gap-2">
+                  <span className="text-emerald-500">↑</span> New conversion from Instagram • 2m ago
+                </span>
+                <span className="text-sm text-gray-500 whitespace-nowrap flex items-center gap-2">
+                  <span className="text-violet-500">✦</span> Ad "Summer Glow" reached 10k impressions • 5m ago
+                </span>
+                <span className="text-sm text-gray-500 whitespace-nowrap flex items-center gap-2">
+                  <span className="text-blue-500">→</span> Campaign budget 80% spent • 12m ago
+                </span>
+                <span className="text-sm text-gray-500 whitespace-nowrap flex items-center gap-2">
+                  <span className="text-emerald-500">↑</span> ROAS improved +0.3x today • 15m ago
+                </span>
+                <span className="text-sm text-gray-500 whitespace-nowrap flex items-center gap-2">
+                  <span className="text-amber-500">★</span> New top performer: "Vitamin C Drops" • 18m ago
+                </span>
+                <span className="text-sm text-gray-500 whitespace-nowrap flex items-center gap-2">
+                  <span className="text-emerald-500">↑</span> New conversion from Instagram • 2m ago
+                </span>
+                <span className="text-sm text-gray-500 whitespace-nowrap flex items-center gap-2">
+                  <span className="text-violet-500">✦</span> Ad "Summer Glow" reached 10k impressions • 5m ago
+                </span>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   );
