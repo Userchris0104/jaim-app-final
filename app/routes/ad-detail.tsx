@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, useNavigate, Link } from "react-router";
 import { topAds, type Ad } from "./dashboard";
 
@@ -15,6 +16,7 @@ const performanceData = [
 export default function AdDetailPage() {
   const { adId } = useParams();
   const navigate = useNavigate();
+  const [hoveredBar, setHoveredBar] = useState<number | null>(null);
 
   // Find the ad by ID
   const ad = topAds.find((a) => a.id === Number(adId));
@@ -233,17 +235,41 @@ export default function AdDetailPage() {
                 const height = (d.impressions / maxImpressions) * 100;
                 const conversionHeight = (d.conversions / 60) * 100;
                 return (
-                  <div key={i} className="flex-1 flex flex-col h-full">
+                  <div
+                    key={i}
+                    className="flex-1 flex flex-col h-full relative"
+                    onMouseEnter={() => setHoveredBar(i)}
+                    onMouseLeave={() => setHoveredBar(null)}
+                  >
+                    {/* Tooltip */}
+                    {hoveredBar === i && (
+                      <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 z-10 animate-fadeIn">
+                        <div className="bg-gray-900 text-white text-xs rounded-lg px-3 py-2 shadow-lg whitespace-nowrap">
+                          <div className="font-semibold mb-1">{d.day}</div>
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="w-2 h-2 rounded-sm bg-violet-400"></span>
+                            <span>{d.impressions.toLocaleString()} impressions</span>
+                          </div>
+                          <div className="flex items-center gap-2 mb-0.5">
+                            <span className="w-2 h-2 rounded-sm bg-blue-400"></span>
+                            <span>{d.clicks.toLocaleString()} clicks</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="w-2 h-2 rounded-sm bg-emerald-400"></span>
+                            <span>{d.conversions} conversions</span>
+                          </div>
+                        </div>
+                        <div className="w-2 h-2 bg-gray-900 rotate-45 absolute left-1/2 -translate-x-1/2 -bottom-1"></div>
+                      </div>
+                    )}
                     <div className="flex-1 flex items-end justify-center gap-1">
                       <div
-                        className="w-[45%] bg-gradient-to-t from-violet-500 to-violet-400 rounded-t-lg transition-all duration-200 hover:from-violet-400 hover:to-violet-300 cursor-pointer"
+                        className={`w-[45%] bg-gradient-to-t from-violet-500 to-violet-400 rounded-t-lg transition-all duration-200 cursor-pointer ${hoveredBar === i ? 'from-violet-400 to-violet-300' : ''}`}
                         style={{ height: `${height}%` }}
-                        title={`${d.impressions.toLocaleString()} impressions`}
                       />
                       <div
-                        className="w-[45%] bg-gradient-to-t from-emerald-500 to-emerald-400 rounded-t-lg transition-all duration-200 hover:from-emerald-400 hover:to-emerald-300 cursor-pointer"
+                        className={`w-[45%] bg-gradient-to-t from-emerald-500 to-emerald-400 rounded-t-lg transition-all duration-200 cursor-pointer ${hoveredBar === i ? 'from-emerald-400 to-emerald-300' : ''}`}
                         style={{ height: `${conversionHeight}%` }}
-                        title={`${d.conversions} conversions`}
                       />
                     </div>
                     <div className="text-center pt-2">
