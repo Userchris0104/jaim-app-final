@@ -76,11 +76,10 @@ const navItems = [
   },
 ];
 
-export default function Sidebar() {
-  const [isCollapsed, setIsCollapsed] = useState(false);
+export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: boolean; setIsCollapsed: (v: boolean) => void }) {
 
   return (
-    <aside className={`${isCollapsed ? 'w-20' : 'w-64'} h-screen bg-gradient-to-b from-white to-slate-50/50 border-r border-gray-100 flex flex-col transition-all duration-300`}>
+    <aside className={`${isCollapsed ? 'w-20' : 'w-64'} fixed top-0 left-0 h-screen bg-gradient-to-b from-white to-slate-50/50 border-r border-gray-100 flex flex-col transition-all duration-300 z-40 overflow-y-auto`}>
       {/* Logo */}
       <div className="p-5 border-b border-gray-100">
         <div className="flex items-center gap-3">
