@@ -1,0 +1,19 @@
+name = "jaim-final"
+compatibility_date = "2024-12-01"
+compatibility_flags = ["nodejs_compat"]
+pages_build_output_dir = "./build/client"
+
+# D1 Database
+[[d1_databases]]
+binding = "DB"
+database_name = "jaim-final-db"
+database_id = "30336a5c-3520-4a2f-afde-80fcfe4655d9"
+
+# R2 Storage
+[[r2_buckets]]
+binding = "R2"
+bucket_name = "jaim-final-assets"
+
+# Environment variables
+[vars]
+ENVIRONMENT = "production"

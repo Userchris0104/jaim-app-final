@@ -1,3 +1,17 @@
-import { type RouteConfig, index } from "@react-router/dev/routes";
+import { type RouteConfig, index, route, layout, prefix } from "@react-router/dev/routes";
 
-export default [index("routes/home.tsx")] satisfies RouteConfig;
+export default [
+  // Redirect root to dashboard
+  index("routes/home.tsx"),
+
+  // App routes with shared layout
+  layout("routes/_layout.tsx", [
+    route("dashboard", "routes/dashboard.tsx"),
+    route("products", "routes/products.tsx"),
+    route("ads", "routes/ads.tsx"),
+    route("campaigns", "routes/campaigns.tsx"),
+    route("analytics", "routes/analytics.tsx"),
+    route("autopilot", "routes/autopilot.tsx"),
+    route("settings", "routes/settings.tsx"),
+  ]),
+] satisfies RouteConfig;

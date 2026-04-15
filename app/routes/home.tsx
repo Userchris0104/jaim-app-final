@@ -1,13 +1,12 @@
-import type { Route } from "./+types/home";
-import { Welcome } from "../welcome/welcome";
+import { Navigate } from "react-router";
 
-export function meta({}: Route.MetaArgs) {
+export function meta() {
   return [
-    { title: "New React Router App" },
-    { name: "description", content: "Welcome to React Router!" },
+    { title: "JAIM - AI Marketing Assistant" },
+    { name: "description", content: "AI-powered marketing for Shopify brands" },
   ];
 }
 
 export default function Home() {
-  return <Welcome />;
+  return <Navigate to="/dashboard" replace />;
 }

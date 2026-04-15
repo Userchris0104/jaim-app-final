@@ -1,0 +1,721 @@
+import { useState } from "react";
+
+// Demo data
+const revenueData = [
+  { date: "Jan 7", revenue: 1800, spend: 350 },
+  { date: "Jan 10", revenue: 2200, spend: 400 },
+  { date: "Jan 13", revenue: 2600, spend: 480 },
+  { date: "Jan 16", revenue: 2400, spend: 440 },
+  { date: "Jan 19", revenue: 3200, spend: 520 },
+  { date: "Jan 20", revenue: 3500, spend: 560 },
+];
+
+const topAds = [
+  { id: 1, name: "Women's Jacquard Overshirt – Green", roas: "4.2x", revenue: "$983", type: "STATIC_IMAGE", image: "/fashion-1.jpg" },
+  { id: 2, name: "Rings-diamond", roas: "4.7x", revenue: "$1,183", type: "STATIC_IMAGE", image: "/jewelry-1.png" },
+  { id: 3, name: "Rings-diamond", roas: "5.2x", revenue: "$1,383", type: "STATIC_IMAGE", image: "/jewelry-2.png" },
+];
+
+const ugcCreators = [
+  { id: 1, initials: "SC", name: "Sarah Chen", niche: "Skincare & Beauty", match: 98, followers: "245K", specialty: "Authentic reviews", price: "$350/video", color: "from-violet-500 to-purple-600" },
+  { id: 2, initials: "ER", name: "Emma Rose", niche: "Clean Beauty", match: 94, followers: "189K", specialty: "Tutorial style", price: "$280/video", color: "from-pink-500 to-rose-600" },
+  { id: 3, initials: "MJ", name: "Mia Johnson", niche: "Wellness", match: 91, followers: "312K", specialty: "Lifestyle content", price: "$420/video", color: "from-amber-500 to-orange-600" },
+];
+
+const aiAdIdeas = [
+  { id: 1, name: "Women's Jacquard Overshirt – Green", type: "UGC", priority: "High", strategy: "Create 'morning routine' UGC", score: 94, insight: "Morning content +34% engagement", roasRange: "4.2x - 5.1x", image: "/fashion-1.jpg" },
+  { id: 2, name: "Women's Dark Denim Jacket", type: "Photo", priority: "High", strategy: "Before/after comparison", score: 89, insight: "2.1x higher CTR potential", roasRange: "3.8x - 4.5x", image: "/fashion-2.jpg" },
+  { id: 3, name: "Twill Suit Pant – Brown", type: "Spotlight", priority: "Medium", strategy: "Texture closeup spotlight", score: 82, insight: "Trending format this week", roasRange: "3.5x - 4.2x", image: "/fashion-3.jpg" },
+  { id: 4, name: "Bundle: Full Set", type: "UGC", priority: "Medium", strategy: "Multi-product showcase", score: 87, insight: "Bundles +45% AOV", roasRange: "4.8x - 5.6x", image: "/fashion-1.jpg" },
+];
+
+const platforms = [
+  { name: "TikTok", icon: "tiktok", color: "bg-black", progressColor: "bg-gray-900", trend: "+12%", roas: "5.4x", spent: "$1,200", revenue: "$6,480", clicks: "12,400", sales: "156", ctr: "4.8%" },
+  { name: "Instagram", icon: "instagram", color: "bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400", progressColor: "bg-gradient-to-r from-purple-500 via-pink-500 to-orange-400", trend: "+8%", roas: "4.8x", spent: "$980", revenue: "$4,704", clicks: "8,320", sales: "98", ctr: "3.2%" },
+  { name: "Facebook", icon: "facebook", color: "bg-blue-600", progressColor: "bg-blue-500", trend: "+5%", roas: "4.2x", spent: "$1,520", revenue: "$6,384", clicks: "9,840", sales: "112", ctr: "2.9%" },
+];
+
+function getGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 18) return "Good afternoon";
+  return "Good evening";
+}
+
+// Mini sparkline component
+function Sparkline({ color = "violet" }: { color?: string }) {
+  const points = [20, 35, 25, 45, 30, 55, 40, 60, 50, 70];
+  const max = Math.max(...points);
+  const height = 40;
+  const width = 100;
+  const pathData = points
+    .map((p, i) => {
+      const x = (i / (points.length - 1)) * width;
+      const y = height - (p / max) * height;
+      return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+    })
+    .join(' ');
+
+  return (
+    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-10">
+      <path
+        d={pathData}
+        fill="none"
+        stroke={color === "violet" ? "#8b5cf6" : color === "emerald" ? "#10b981" : "#f59e0b"}
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+export default function DashboardPage() {
+  const [timeRange, setTimeRange] = useState<"7" | "14" | "30">("14");
+  const [chartType, setChartType] = useState<"revenue" | "spend">("revenue");
+  const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null);
+
+  const maxRevenue = Math.max(...revenueData.map(d => d.revenue));
+
+  return (
+    <div className="min-h-screen bg-gray-50/50">
+      {/* Header */}
+      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-100">
+        <div className="px-8 py-5 flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900">{getGreeting()} 👋</h1>
+            <p className="text-gray-500 text-sm">Here's how your ads are performing today</p>
+          </div>
+          <div className="flex items-center gap-3">
+            {/* Live Ads Pill */}
+            <div className="hidden md:flex items-center gap-2 px-4 py-2 bg-white rounded-full border border-gray-200">
+              <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+              <span className="text-sm font-medium text-gray-700">12 ads live</span>
+            </div>
+
+            {/* Revenue Today Pill */}
+            <div className="hidden md:flex items-center px-4 py-2 bg-amber-50 rounded-full border border-amber-200">
+              <span className="text-sm font-medium text-amber-700">+$847 today</span>
+            </div>
+
+            {/* Notification */}
+            <button className="relative p-2.5 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all">
+              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+              </svg>
+              <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center">3</span>
+            </button>
+
+            {/* Store Badge */}
+            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md hover:border-violet-200 transition-all cursor-pointer">
+              <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
+                <span className="text-gray-400 text-lg">···</span>
+              </div>
+              <span className="text-sm font-medium text-gray-700">'Cejf - Test</span>
+              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+              </svg>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      {/* Main Content */}
+      <div className="p-8 space-y-6">
+        {/* Top Row: ROAS + Metrics */}
+        <div className="grid grid-cols-12 gap-6">
+          {/* ROAS Hero Card */}
+          <div className="col-span-12 lg:col-span-5">
+            <div className="bg-gradient-to-br from-violet-600 via-indigo-600 to-purple-700 rounded-3xl p-8 shadow-xl shadow-violet-500/20 relative overflow-hidden h-full">
+              {/* Animated background */}
+              <div className="absolute inset-0 opacity-10">
+                <div className="absolute top-0 right-0 w-40 h-40 bg-white rounded-full blur-3xl transform translate-x-10 -translate-y-10" />
+              </div>
+              <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-4">
+                  <div className="w-10 h-10 rounded-xl bg-white/20 backdrop-blur-sm flex items-center justify-center">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                  </div>
+                  <span className="text-white/90 text-sm font-semibold uppercase tracking-wide">Return on Ad Spend</span>
+                </div>
+                <div className="flex items-baseline gap-1 mb-3">
+                  <span className="text-7xl font-black text-white tracking-tight">5.2</span>
+                  <span className="text-3xl font-bold text-white/70">x</span>
+                </div>
+                <div className="flex items-center gap-3 mb-6">
+                  <span className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-white/20 backdrop-blur-sm text-white text-sm font-semibold">
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                    </svg>
+                    +18%
+                  </span>
+                  <span className="text-white/70 text-sm">vs last week</span>
+                </div>
+                <div className="pt-4 border-t border-white/20">
+                  <p className="text-white/80 text-base">
+                    In plain English: <span className="text-white font-semibold">1€ spent generates 5.2€</span>
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Metric Cards */}
+          <div className="col-span-12 lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Revenue Card */}
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-lg transition-all">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-500 text-xs font-medium uppercase tracking-wide">Revenue</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">+24%</span>
+              </div>
+              <div className="text-3xl font-bold text-gray-900 mb-1">$21.840</div>
+              <div className="text-gray-400 text-xs mb-3">$4.200 ad spend</div>
+              <Sparkline color="violet" />
+            </div>
+
+            {/* Conversions Card */}
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-lg transition-all">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-500 text-xs font-medium uppercase tracking-wide">Conversions</span>
+                </div>
+                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">+12%</span>
+              </div>
+              <div className="text-3xl font-bold text-gray-900 mb-1">428</div>
+              <div className="text-gray-400 text-xs mb-3">$9.8 cost per acquisition</div>
+              <Sparkline color="emerald" />
+            </div>
+
+            {/* Active Ads Card */}
+            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-lg transition-all">
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
+                    <svg className="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 10l4.553-2.276A1 1 0 0121 8.618v6.764a1 1 0 01-1.447.894L15 14M5 18h8a2 2 0 002-2V8a2 2 0 00-2-2H5a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <span className="text-gray-500 text-xs font-medium uppercase tracking-wide">Active Ads</span>
+                </div>
+                <button className="text-gray-400 hover:text-gray-600">
+                  <svg className="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                    <path d="M10 6a2 2 0 110-4 2 2 0 010 4zM10 12a2 2 0 110-4 2 2 0 010 4zM10 18a2 2 0 110-4 2 2 0 010 4z" />
+                  </svg>
+                </button>
+              </div>
+              <div className="text-3xl font-bold text-gray-900 mb-1">106</div>
+              <div className="text-xs">
+                <span className="text-gray-400">24 total</span>
+                <span className="text-gray-300 mx-1">•</span>
+                <span className="text-emerald-600 font-medium">All performing</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Charts Row */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Revenue Over Time */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Revenue Over Time</h3>
+                    <p className="text-xs text-gray-500">Track your ad performance trends</p>
+                  </div>
+                </div>
+                {/* Time Range Toggle */}
+                <div className="flex items-center bg-gray-100 rounded-lg p-1">
+                  {(["7", "14", "30"] as const).map((range) => (
+                    <button
+                      key={range}
+                      onClick={() => setTimeRange(range)}
+                      className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all ${
+                        timeRange === range
+                          ? "bg-white text-gray-900 shadow-sm"
+                          : "text-gray-500 hover:text-gray-700"
+                      }`}
+                    >
+                      {range} Days
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+
+            {/* Stats Row */}
+            <div className="grid grid-cols-3 border-b border-gray-100">
+              <div className="p-4 border-r border-gray-100">
+                <div className="text-xs text-violet-600 font-medium mb-1">Total Revenue</div>
+                <div className="text-xl font-bold text-gray-900">$35.450</div>
+              </div>
+              <div className="p-4 border-r border-gray-100">
+                <div className="text-xs text-gray-500 font-medium mb-1">Total Spend</div>
+                <div className="text-xl font-bold text-gray-900">$6.510</div>
+              </div>
+              <div className="p-4">
+                <div className="text-xs text-violet-600 font-medium mb-1">Avg ROAS</div>
+                <div className="text-xl font-bold text-violet-600">5.4x</div>
+              </div>
+            </div>
+
+            <div className="p-5">
+              {/* Chart Type Toggle */}
+              <div className="flex items-center gap-2 mb-4">
+                <button
+                  onClick={() => setChartType("revenue")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                    chartType === "revenue"
+                      ? "bg-violet-100 text-violet-700"
+                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${chartType === "revenue" ? "bg-violet-500" : "bg-gray-400"}`}></span>
+                  Revenue
+                </button>
+                <button
+                  onClick={() => setChartType("spend")}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
+                    chartType === "spend"
+                      ? "bg-blue-100 text-blue-700"
+                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
+                  }`}
+                >
+                  <span className={`w-2 h-2 rounded-full ${chartType === "spend" ? "bg-blue-500" : "bg-gray-400"}`}></span>
+                  Ad Spend
+                </button>
+              </div>
+
+              {/* Line Chart */}
+              <div className="h-48 relative">
+                <svg viewBox="0 0 400 150" className="w-full h-full" preserveAspectRatio="none">
+                  {/* Grid lines */}
+                  {[0, 1, 2, 3, 4].map((i) => (
+                    <line
+                      key={i}
+                      x1="0"
+                      y1={i * 37.5}
+                      x2="400"
+                      y2={i * 37.5}
+                      stroke="#f3f4f6"
+                      strokeWidth="1"
+                    />
+                  ))}
+
+                  {/* Area fill */}
+                  <path
+                    d={`M 0 ${150 - (revenueData[0].revenue / maxRevenue) * 120} ${revenueData.map((d, i) => {
+                      const x = (i / (revenueData.length - 1)) * 400;
+                      const y = 150 - (d.revenue / maxRevenue) * 120;
+                      return `L ${x} ${y}`;
+                    }).join(' ')} L 400 150 L 0 150 Z`}
+                    fill="url(#chartGradient)"
+                    opacity="0.3"
+                  />
+
+                  {/* Line */}
+                  <path
+                    d={revenueData.map((d, i) => {
+                      const x = (i / (revenueData.length - 1)) * 400;
+                      const y = 150 - (d.revenue / maxRevenue) * 120;
+                      return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
+                    }).join(' ')}
+                    fill="none"
+                    stroke="#8b5cf6"
+                    strokeWidth="3"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+
+                  {/* Data points */}
+                  {revenueData.map((d, i) => {
+                    const x = (i / (revenueData.length - 1)) * 400;
+                    const y = 150 - (d.revenue / maxRevenue) * 120;
+                    return (
+                      <circle
+                        key={i}
+                        cx={x}
+                        cy={y}
+                        r="6"
+                        fill="white"
+                        stroke="#8b5cf6"
+                        strokeWidth="3"
+                      />
+                    );
+                  })}
+
+                  <defs>
+                    <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
+                      <stop offset="0%" stopColor="#8b5cf6" />
+                      <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" />
+                    </linearGradient>
+                  </defs>
+                </svg>
+
+                {/* X-axis labels */}
+                <div className="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-gray-400 -mb-6">
+                  {revenueData.map((d) => (
+                    <span key={d.date}>{d.date}</span>
+                  ))}
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Platform Performance */}
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+            <div className="p-5 border-b border-gray-100">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/25">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="font-semibold text-gray-900">Platform Performance</h3>
+                    <p className="text-xs text-gray-500">Compare your ad channels</p>
+                  </div>
+                </div>
+                <span className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 text-emerald-700 rounded-full text-sm font-medium">
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
+                  </svg>
+                  All Profitable
+                </span>
+              </div>
+            </div>
+            <div className="p-5 space-y-4">
+              {platforms.map((platform) => (
+                <div key={platform.name}>
+                  <div
+                    onClick={() => setExpandedPlatform(expandedPlatform === platform.name ? null : platform.name)}
+                    className="cursor-pointer"
+                  >
+                    <div className="flex items-center gap-4 mb-2">
+                      {/* Platform Icon */}
+                      <div className={`w-12 h-12 rounded-xl ${platform.color} flex items-center justify-center shadow-lg`}>
+                        {platform.name === "TikTok" && (
+                          <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z"/>
+                          </svg>
+                        )}
+                        {platform.name === "Instagram" && (
+                          <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zM12 0C8.741 0 8.333.014 7.053.072 2.695.272.273 2.69.073 7.052.014 8.333 0 8.741 0 12c0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98C8.333 23.986 8.741 24 12 24c3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98C15.668.014 15.259 0 12 0zm0 5.838a6.162 6.162 0 100 12.324 6.162 6.162 0 000-12.324zM12 16a4 4 0 110-8 4 4 0 010 8zm6.406-11.845a1.44 1.44 0 100 2.881 1.44 1.44 0 000-2.881z"/>
+                          </svg>
+                        )}
+                        {platform.name === "Facebook" && (
+                          <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+                            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+                          </svg>
+                        )}
+                      </div>
+
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-gray-900">{platform.name}</span>
+                            <span className="px-2 py-0.5 rounded-full text-xs font-bold bg-emerald-100 text-emerald-700">{platform.trend}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <span className="text-xl font-bold text-gray-900">{platform.roas}</span>
+                            <span className="text-xs text-gray-400">ROAS</span>
+                            <svg className={`w-5 h-5 text-gray-400 transition-transform ${expandedPlatform === platform.name ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                            </svg>
+                          </div>
+                        </div>
+
+                        {/* Progress bar */}
+                        <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-1">
+                          <div
+                            className={`h-full rounded-full ${platform.progressColor}`}
+                            style={{ width: `${(parseFloat(platform.roas) / 6) * 100}%` }}
+                          />
+                        </div>
+
+                        <div className="text-xs text-gray-500">
+                          {platform.spent} spent <span className="text-gray-300 mx-1">•</span> {platform.revenue} revenue
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Expanded Details */}
+                  {expandedPlatform === platform.name && (
+                    <div className="ml-16 mt-3 grid grid-cols-3 gap-4 p-4 bg-gray-50 rounded-xl">
+                      <div className="text-center">
+                        <div className="text-xl font-bold text-gray-900">{platform.clicks}</div>
+                        <div className="text-xs text-gray-500 uppercase">Clicks</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xl font-bold text-gray-900">{platform.sales}</div>
+                        <div className="text-xs text-gray-500 uppercase">Sales</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-xl font-bold text-gray-900">{platform.ctr}</div>
+                        <div className="text-xs text-gray-500 uppercase">CTR</div>
+                      </div>
+                      <div className="col-span-3 text-center pt-2 border-t border-gray-200">
+                        <button className="text-violet-600 text-sm font-medium hover:text-violet-700 flex items-center gap-1 mx-auto">
+                          View Full Report
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Best Performing */}
+              <div className="pt-4 border-t border-gray-100 flex items-center justify-between">
+                <span className="text-sm text-gray-500">Best performing:</span>
+                <div className="flex items-center gap-2">
+                  <div className="w-6 h-6 rounded-md bg-black flex items-center justify-center">
+                    <svg className="w-3 h-3 text-white" viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z"/>
+                    </svg>
+                  </div>
+                  <span className="text-sm font-semibold text-gray-900">TikTok at 5.4x ROAS</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Top Performing Ads */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-amber-500 to-orange-600 flex items-center justify-center shadow-lg shadow-amber-500/25">
+                <svg className="w-5 h-5 text-white" fill="currentColor" viewBox="0 0 20 20">
+                  <path d="M9.049 2.927c.3-.921 1.603-.921 1.902 0l1.07 3.292a1 1 0 00.95.69h3.462c.969 0 1.371 1.24.588 1.81l-2.8 2.034a1 1 0 00-.364 1.118l1.07 3.292c.3.921-.755 1.688-1.54 1.118l-2.8-2.034a1 1 0 00-1.175 0l-2.8 2.034c-.784.57-1.838-.197-1.539-1.118l1.07-3.292a1 1 0 00-.364-1.118L2.98 8.72c-.783-.57-.38-1.81.588-1.81h3.461a1 1 0 00.951-.69l1.07-3.292z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Top Performing Ads</h3>
+                <p className="text-xs text-gray-500">Your best performers this week</p>
+              </div>
+            </div>
+            <button className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1">
+              View All
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
+          <div className="p-5">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {topAds.map((ad) => (
+                <div key={ad.id} className="group relative rounded-2xl overflow-hidden border border-gray-100 hover:border-violet-200 hover:shadow-lg transition-all cursor-pointer bg-gray-50">
+                  {/* Image */}
+                  <div className="aspect-square relative">
+                    <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
+                      <span className="text-6xl">👔</span>
+                    </div>
+                    {/* Type Badge */}
+                    <div className="absolute top-3 left-3 px-2 py-1 bg-violet-600 text-white text-[10px] font-bold rounded uppercase">
+                      {ad.type}
+                    </div>
+                    {/* Live Badge */}
+                    <div className="absolute top-3 right-3 flex items-center gap-1 px-2 py-1 bg-emerald-500 text-white text-[10px] font-bold rounded">
+                      <span className="w-1.5 h-1.5 bg-white rounded-full animate-pulse"></span>
+                      LIVE
+                    </div>
+                  </div>
+                  {/* Info */}
+                  <div className="p-4 bg-white">
+                    <h4 className="font-medium text-gray-900 text-sm mb-2 truncate">{ad.name}</h4>
+                    <div className="flex items-center justify-between">
+                      <span className="text-emerald-600 font-semibold text-sm flex items-center gap-1">
+                        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 10l7-7m0 0l7 7m-7-7v18" />
+                        </svg>
+                        {ad.roas}
+                      </span>
+                      <span className="text-gray-900 font-semibold text-sm">{ad.revenue}</span>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Find Your Perfect UGC Creator */}
+        <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="p-5 border-b border-gray-100 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center shadow-lg shadow-violet-500/25">
+                <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z" />
+                </svg>
+              </div>
+              <div>
+                <h3 className="font-semibold text-gray-900">Find Your Perfect UGC Creator</h3>
+                <p className="text-xs text-gray-500">AI-matched creators based on your brand</p>
+              </div>
+            </div>
+            <button className="px-4 py-2 bg-violet-600 text-white text-sm font-medium rounded-lg hover:bg-violet-700 transition-colors">
+              Browse All Creators
+            </button>
+          </div>
+          <div className="p-5">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {ugcCreators.map((creator) => (
+                <div key={creator.id} className="p-4 rounded-xl border border-gray-100 hover:border-violet-200 hover:shadow-lg transition-all">
+                  <div className="flex items-start justify-between mb-3">
+                    <div className="flex items-center gap-3">
+                      <div className={`w-12 h-12 rounded-full bg-gradient-to-br ${creator.color} flex items-center justify-center text-white font-bold`}>
+                        {creator.initials}
+                      </div>
+                      <div>
+                        <h4 className="font-semibold text-gray-900">{creator.name}</h4>
+                        <p className="text-xs text-gray-500">{creator.niche}</p>
+                      </div>
+                    </div>
+                    <span className={`px-2 py-1 rounded-full text-xs font-bold ${
+                      creator.match >= 95 ? 'bg-emerald-100 text-emerald-700' :
+                      creator.match >= 90 ? 'bg-violet-100 text-violet-700' :
+                      'bg-amber-100 text-amber-700'
+                    }`}>
+                      {creator.match}%
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-1 text-xs text-gray-500 mb-3">
+                    <span>{creator.followers}</span>
+                    <span className="text-gray-300">•</span>
+                    <span>{creator.specialty}</span>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <span className="text-violet-600 font-semibold">{creator.price}</span>
+                    <button className="px-3 py-1.5 text-xs font-medium text-violet-600 border border-violet-200 rounded-lg hover:bg-violet-50 transition-colors">
+                      View Profile
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* AI Ad Ideas */}
+        <div className="bg-gradient-to-br from-slate-900 via-violet-950 to-slate-900 rounded-2xl overflow-hidden">
+          <div className="p-5 border-b border-white/10 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl bg-violet-500/20 flex items-center justify-center">
+                <svg className="w-5 h-5 text-violet-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                </svg>
+              </div>
+              <div>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-semibold text-white">AI Ad Ideas</h3>
+                  <span className="px-2 py-0.5 bg-emerald-500/20 text-emerald-400 text-xs font-medium rounded-full">4 new suggestions</span>
+                </div>
+                <p className="text-xs text-gray-400">Personalized recommendations based on your performance data</p>
+              </div>
+            </div>
+            <button className="flex items-center gap-2 px-4 py-2 bg-white/10 text-white text-sm font-medium rounded-lg hover:bg-white/20 transition-colors">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              Refresh
+            </button>
+          </div>
+          <div className="p-5">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+              {aiAdIdeas.map((idea) => (
+                <div key={idea.id} className="bg-white/5 backdrop-blur-sm rounded-xl overflow-hidden border border-white/10 hover:border-violet-500/50 transition-all group">
+                  {/* Image */}
+                  <div className="aspect-[4/5] relative">
+                    <div className="absolute inset-0 bg-gradient-to-br from-gray-700 to-gray-800 flex items-center justify-center">
+                      <span className="text-5xl">👔</span>
+                    </div>
+                    {/* Type Badge */}
+                    <div className={`absolute top-3 left-3 px-2 py-1 text-white text-[10px] font-bold rounded ${
+                      idea.type === "UGC" ? "bg-violet-600" :
+                      idea.type === "Photo" ? "bg-blue-600" :
+                      "bg-amber-600"
+                    }`}>
+                      {idea.type}
+                    </div>
+                    {/* Priority Badge */}
+                    <div className={`absolute top-3 right-3 flex items-center gap-1 px-2 py-1 text-[10px] font-bold rounded ${
+                      idea.priority === "High" ? "bg-orange-500 text-white" : "bg-gray-500 text-white"
+                    }`}>
+                      {idea.priority === "High" && (
+                        <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
+                          <path fillRule="evenodd" d="M12.395 2.553a1 1 0 00-1.45-.385c-.345.23-.614.558-.822.88-.214.33-.403.713-.57 1.116-.334.804-.614 1.768-.84 2.734a31.365 31.365 0 00-.613 3.58 2.64 2.64 0 01-.945-1.067c-.328-.68-.398-1.534-.398-2.654A1 1 0 005.05 6.05 6.981 6.981 0 003 11a7 7 0 1011.95-4.95c-.592-.591-.98-.985-1.348-1.467-.363-.476-.724-1.063-1.207-2.03zM12.12 15.12A3 3 0 017 13s.879.5 2.5.5c0-1 .5-4 1.25-4.5.5 1 .786 1.293 1.371 1.879A2.99 2.99 0 0113 13a2.99 2.99 0 01-.879 2.121z" clipRule="evenodd" />
+                        </svg>
+                      )}
+                      {idea.priority}
+                    </div>
+                    {/* Gradient overlay */}
+                    <div className="absolute inset-0 bg-gradient-to-t from-black/80 via-transparent to-transparent" />
+                    {/* Bottom info */}
+                    <div className="absolute bottom-0 left-0 right-0 p-3">
+                      <h4 className="font-semibold text-white text-sm mb-0.5 truncate">{idea.name}</h4>
+                      <p className="text-xs text-gray-400 truncate">{idea.strategy}</p>
+                    </div>
+                  </div>
+                  {/* Details */}
+                  <div className="p-3 space-y-3">
+                    {/* Score bar */}
+                    <div>
+                      <div className="h-1.5 bg-white/10 rounded-full overflow-hidden">
+                        <div
+                          className="h-full bg-gradient-to-r from-violet-500 to-purple-500 rounded-full"
+                          style={{ width: `${idea.score}%` }}
+                        />
+                      </div>
+                      <div className="flex items-center justify-between mt-1">
+                        <span className="text-xs text-gray-400">{idea.insight}</span>
+                        <span className="text-xs text-white font-medium">{idea.score}%</span>
+                      </div>
+                    </div>
+                    {/* ROAS */}
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs text-gray-400">Est. ROAS</span>
+                      <span className="text-sm font-semibold text-white">{idea.roasRange}</span>
+                    </div>
+                    {/* Generate button */}
+                    <button className="w-full py-2.5 bg-violet-600 hover:bg-violet-500 text-white text-sm font-medium rounded-lg transition-colors flex items-center justify-center gap-2">
+                      <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      Generate Ad
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
