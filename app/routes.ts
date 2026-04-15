@@ -9,6 +9,7 @@ export default [
     route("dashboard", "routes/dashboard.tsx"),
     route("products", "routes/products.tsx"),
     route("ads", "routes/ads.tsx"),
+    route("ads/:adId", "routes/ad-detail.tsx"),
     route("campaigns", "routes/campaigns.tsx"),
     route("analytics", "routes/analytics.tsx"),
     route("autopilot", "routes/autopilot.tsx"),

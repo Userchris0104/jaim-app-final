@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router";
 
 // Demo data
 const revenueData = [
@@ -10,13 +11,82 @@ const revenueData = [
   { date: "Jan 20", revenue: 3500, spend: 560 },
 ];
 
-const topAds = [
-  { id: 1, name: "Women's Jacquard Overshirt – Green", roas: "4.2x", revenue: "$983", type: "STATIC_IMAGE", image: "/fashion-1.jpg", platform: "Instagram" },
-  { id: 2, name: "Rings-diamond", roas: "4.7x", revenue: "$1,183", type: "STATIC_IMAGE", image: "/jewelry-1.png", platform: "Facebook" },
-  { id: 3, name: "Rings-diamond", roas: "5.2x", revenue: "$1,383", type: "STATIC_IMAGE", image: "/jewelry-2.png", platform: "TikTok" },
+export const topAds = [
+  {
+    id: 1,
+    name: "Women's Jacquard Overshirt – Green",
+    roas: "4.2x",
+    roasChange: "+12%",
+    revenue: "$983",
+    revenueChange: "+8%",
+    clicks: "2,847",
+    clicksChange: "+15%",
+    ctr: "3.2%",
+    ctrChange: "+0.4%",
+    type: "STATIC_IMAGE",
+    status: "LIVE",
+    image: "/fashion-1.jpg",
+    platform: "Instagram",
+    headline: "Elevate Your Style",
+    description: "Discover the perfect blend of comfort and sophistication with our Women's Jacquard Overshirt. Premium fabric, timeless design.",
+    cta: "Shop Now",
+    targetAudience: "Women 25-44, Fashion enthusiasts",
+    dailyBudget: "$50",
+    createdAt: "Jan 12, 2026",
+    updatedAt: "Jan 18, 2026",
+    productId: 1
+  },
+  {
+    id: 2,
+    name: "Rings-diamond",
+    roas: "4.7x",
+    roasChange: "+18%",
+    revenue: "$1,183",
+    revenueChange: "+22%",
+    clicks: "1,923",
+    clicksChange: "+10%",
+    ctr: "4.1%",
+    ctrChange: "+0.6%",
+    type: "STATIC_IMAGE",
+    status: "LIVE",
+    image: "/jewelry-1.png",
+    platform: "Facebook",
+    headline: "Timeless Elegance",
+    description: "Make every moment sparkle with our exquisite diamond ring collection. Crafted with precision, designed for forever.",
+    cta: "Discover More",
+    targetAudience: "Women 28-55, Jewelry lovers",
+    dailyBudget: "$75",
+    createdAt: "Jan 10, 2026",
+    updatedAt: "Jan 19, 2026",
+    productId: 2
+  },
+  {
+    id: 3,
+    name: "Rings-diamond",
+    roas: "5.2x",
+    roasChange: "+24%",
+    revenue: "$1,383",
+    revenueChange: "+31%",
+    clicks: "3,412",
+    clicksChange: "+28%",
+    ctr: "5.8%",
+    ctrChange: "+1.2%",
+    type: "STATIC_IMAGE",
+    status: "LIVE",
+    image: "/jewelry-2.png",
+    platform: "TikTok",
+    headline: "Shine Bright",
+    description: "The perfect ring for the perfect moment. Our diamond collection brings luxury within reach.",
+    cta: "Shop Collection",
+    targetAudience: "Women 22-38, Trend-conscious",
+    dailyBudget: "$60",
+    createdAt: "Jan 8, 2026",
+    updatedAt: "Jan 20, 2026",
+    productId: 2
+  },
 ];
 
-type Ad = typeof topAds[number];
+export type Ad = typeof topAds[number];
 
 const ugcCreators = [
   { id: 1, initials: "SC", name: "Sarah Chen", niche: "Skincare & Beauty", match: 98, followers: "245K", specialty: "Authentic reviews", price: "$350/video", color: "from-violet-500 to-purple-600" },
@@ -82,7 +152,7 @@ function WaveSparkline({ color, id, trend = "up" }: { color: string; id: string;
 }
 
 // Ad Preview Modal
-function AdModal({ ad, onClose }: { ad: Ad | null; onClose: () => void }) {
+function AdModal({ ad, onClose, onViewReport }: { ad: Ad | null; onClose: () => void; onViewReport: (adId: number) => void }) {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
       if (e.key === "Escape") onClose();
@@ -156,7 +226,10 @@ function AdModal({ ad, onClose }: { ad: Ad | null; onClose: () => void }) {
           </div>
 
           {/* View Full Report Button */}
-          <button className="w-full py-3 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+          <button
+            onClick={() => onViewReport(ad.id)}
+            className="w-full py-3 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
             View Full Report
             <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
@@ -169,10 +242,16 @@ function AdModal({ ad, onClose }: { ad: Ad | null; onClose: () => void }) {
 }
 
 export default function DashboardPage() {
+  const navigate = useNavigate();
   const [timeRange, setTimeRange] = useState<"7" | "14" | "30">("14");
   const [chartType, setChartType] = useState<"revenue" | "spend">("revenue");
   const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null);
   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
+
+  const handleViewReport = (adId: number) => {
+    setSelectedAd(null);
+    navigate(`/ads/${adId}`);
+  };
 
   const maxRevenue = Math.max(...revenueData.map(d => d.revenue));
 
@@ -790,7 +869,7 @@ export default function DashboardPage() {
       </div>
 
       {/* Ad Preview Modal */}
-      <AdModal ad={selectedAd} onClose={() => setSelectedAd(null)} />
+      <AdModal ad={selectedAd} onClose={() => setSelectedAd(null)} onViewReport={handleViewReport} />
     </div>
   );
 }
