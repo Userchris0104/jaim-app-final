@@ -228,9 +228,9 @@ export default function DashboardPage() {
         </div>
 
         {/* Charts Row */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-[7fr_3fr] gap-6">
           {/* Revenue Over Time */}
-          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden">
+          <div className="bg-white rounded-2xl border border-gray-100 shadow-sm overflow-hidden flex flex-col">
             <div className="p-5 border-b border-gray-100">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-3">
@@ -263,121 +263,51 @@ export default function DashboardPage() {
               </div>
             </div>
 
-            {/* Stats Row */}
-            <div className="grid grid-cols-3 border-b border-gray-100">
-              <div className="p-4 border-r border-gray-100">
-                <div className="text-xs text-violet-600 font-medium mb-1">Total Revenue</div>
-                <div className="text-xl font-bold text-gray-900">$35.450</div>
-              </div>
-              <div className="p-4 border-r border-gray-100">
-                <div className="text-xs text-gray-500 font-medium mb-1">Total Spend</div>
-                <div className="text-xl font-bold text-gray-900">$6.510</div>
-              </div>
-              <div className="p-4">
-                <div className="text-xs text-violet-600 font-medium mb-1">Avg ROAS</div>
-                <div className="text-xl font-bold text-violet-600">5.4x</div>
-              </div>
-            </div>
-
-            <div className="p-5">
-              {/* Chart Type Toggle */}
-              <div className="flex items-center gap-2 mb-4">
-                <button
-                  onClick={() => setChartType("revenue")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                    chartType === "revenue"
-                      ? "bg-violet-100 text-violet-700"
-                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full ${chartType === "revenue" ? "bg-violet-500" : "bg-gray-400"}`}></span>
-                  Revenue
-                </button>
-                <button
-                  onClick={() => setChartType("spend")}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-sm font-medium transition-all ${
-                    chartType === "spend"
-                      ? "bg-blue-100 text-blue-700"
-                      : "bg-gray-100 text-gray-500 hover:bg-gray-200"
-                  }`}
-                >
-                  <span className={`w-2 h-2 rounded-full ${chartType === "spend" ? "bg-blue-500" : "bg-gray-400"}`}></span>
-                  Ad Spend
-                </button>
-              </div>
-
-              {/* Line Chart */}
-              <div className="h-48 relative">
-                <svg viewBox="0 0 400 150" className="w-full h-full" preserveAspectRatio="none">
-                  {/* Grid lines */}
-                  {[0, 1, 2, 3, 4].map((i) => (
-                    <line
-                      key={i}
-                      x1="0"
-                      y1={i * 37.5}
-                      x2="400"
-                      y2={i * 37.5}
-                      stroke="#f3f4f6"
-                      strokeWidth="1"
-                    />
-                  ))}
-
-                  {/* Area fill */}
-                  <path
-                    d={`M 0 ${150 - (revenueData[0].revenue / maxRevenue) * 120} ${revenueData.map((d, i) => {
-                      const x = (i / (revenueData.length - 1)) * 400;
-                      const y = 150 - (d.revenue / maxRevenue) * 120;
-                      return `L ${x} ${y}`;
-                    }).join(' ')} L 400 150 L 0 150 Z`}
-                    fill="url(#chartGradient)"
-                    opacity="0.3"
-                  />
-
-                  {/* Line */}
-                  <path
-                    d={revenueData.map((d, i) => {
-                      const x = (i / (revenueData.length - 1)) * 400;
-                      const y = 150 - (d.revenue / maxRevenue) * 120;
-                      return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-                    }).join(' ')}
-                    fill="none"
-                    stroke="#8b5cf6"
-                    strokeWidth="3"
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                  />
-
-                  {/* Data points */}
-                  {revenueData.map((d, i) => {
-                    const x = (i / (revenueData.length - 1)) * 400;
-                    const y = 150 - (d.revenue / maxRevenue) * 120;
-                    return (
-                      <circle
-                        key={i}
-                        cx={x}
-                        cy={y}
-                        r="6"
-                        fill="white"
-                        stroke="#8b5cf6"
-                        strokeWidth="3"
-                      />
-                    );
-                  })}
-
-                  <defs>
-                    <linearGradient id="chartGradient" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="0%" stopColor="#8b5cf6" />
-                      <stop offset="100%" stopColor="#8b5cf6" stopOpacity="0" />
-                    </linearGradient>
-                  </defs>
-                </svg>
-
-                {/* X-axis labels */}
-                <div className="absolute bottom-0 left-0 right-0 flex justify-between text-xs text-gray-400 -mb-6">
-                  {revenueData.map((d) => (
-                    <span key={d.date}>{d.date}</span>
-                  ))}
+            {/* Chart Content */}
+            <div className="px-5 pt-4 pb-3 flex flex-col flex-1">
+              {/* Stats Row */}
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-8">
+                  <div>
+                    <div className="text-xs text-gray-500 mb-0.5">Total Revenue</div>
+                    <div className="text-xl font-bold text-gray-900">$35,450</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 mb-0.5">Ad Spend</div>
+                    <div className="text-xl font-bold text-gray-900">$6,510</div>
+                  </div>
+                  <div>
+                    <div className="text-xs text-gray-500 mb-0.5">ROAS</div>
+                    <div className="text-xl font-bold text-violet-600">5.4x</div>
+                  </div>
                 </div>
+                {/* Legend */}
+                <div className="flex items-center gap-1.5">
+                  <span className="w-2.5 h-2.5 rounded-sm bg-gradient-to-t from-violet-500 to-violet-400"></span>
+                  <span className="text-xs text-gray-500">Revenue</span>
+                </div>
+              </div>
+
+              {/* Bar Chart - fills remaining space */}
+              <div className="flex-1 flex items-end justify-between gap-3 min-h-[120px]">
+                {revenueData.map((d, i) => {
+                  const revenueHeight = (d.revenue / maxRevenue) * 100;
+                  return (
+                    <div key={i} className="flex-1 flex flex-col h-full">
+                      {/* Bar - grows from bottom */}
+                      <div className="flex-1 flex items-end justify-center">
+                        <div
+                          className="w-full max-w-[40px] bg-gradient-to-t from-violet-500 to-violet-400 rounded-t-lg transition-all duration-200 hover:from-violet-400 hover:to-violet-300 cursor-pointer"
+                          style={{ height: `${revenueHeight}%` }}
+                        />
+                      </div>
+                      {/* Date Label */}
+                      <div className="text-center pt-2">
+                        <span className="text-[11px] text-gray-400">{d.date}</span>
+                      </div>
+                    </div>
+                  );
+                })}
               </div>
             </div>
           </div>
