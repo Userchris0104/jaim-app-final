@@ -42,29 +42,38 @@ function getGreeting() {
   return "Good evening";
 }
 
-// Mini sparkline component
-function Sparkline({ color = "violet" }: { color?: string }) {
-  const points = [20, 35, 25, 45, 30, 55, 40, 60, 50, 70];
-  const max = Math.max(...points);
-  const height = 40;
-  const width = 100;
-  const pathData = points
-    .map((p, i) => {
-      const x = (i / (points.length - 1)) * width;
-      const y = height - (p / max) * height;
-      return `${i === 0 ? 'M' : 'L'} ${x} ${y}`;
-    })
-    .join(' ');
+// Decorative wave sparkline component - shows trend direction
+function WaveSparkline({ color, id, trend = "up" }: { color: string; id: string; trend?: "up" | "moderate" }) {
+  // Strong upward trend (+24% revenue) - starts lower, ends higher
+  const strongUpPath = "M 0 32 C 25 30, 40 28, 60 26 C 80 24, 95 22, 115 20 C 135 18, 155 14, 175 10 C 190 7, 195 5, 200 4";
+  const strongUpFill = "M 0 32 C 25 30, 40 28, 60 26 C 80 24, 95 22, 115 20 C 135 18, 155 14, 175 10 C 190 7, 195 5, 200 4 L 200 40 L 0 40 Z";
+
+  // Moderate upward trend (+12% conversions) - gentler slope
+  const moderateUpPath = "M 0 28 C 30 27, 50 25, 80 24 C 110 23, 130 21, 160 19 C 180 17, 190 15, 200 13";
+  const moderateUpFill = "M 0 28 C 30 27, 50 25, 80 24 C 110 23, 130 21, 160 19 C 180 17, 190 15, 200 13 L 200 40 L 0 40 Z";
+
+  const linePath = trend === "up" ? strongUpPath : moderateUpPath;
+  const fillPath = trend === "up" ? strongUpFill : moderateUpFill;
 
   return (
-    <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-10">
+    <svg viewBox="0 0 200 40" className="w-full h-10 block" preserveAspectRatio="none">
+      <defs>
+        <linearGradient id={`waveGradient-${id}`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0%" stopColor={color} stopOpacity="0.12" />
+          <stop offset="100%" stopColor={color} stopOpacity="0" />
+        </linearGradient>
+      </defs>
+      {/* Gradient fill area */}
+      <path d={fillPath} fill={`url(#waveGradient-${id})`} />
+      {/* Wave line */}
       <path
-        d={pathData}
+        d={linePath}
         fill="none"
-        stroke={color === "violet" ? "#8b5cf6" : color === "emerald" ? "#10b981" : "#f59e0b"}
-        strokeWidth="2"
+        stroke={color}
+        strokeWidth="1.5"
         strokeLinecap="round"
         strokeLinejoin="round"
+        vectorEffect="non-scaling-stroke"
       />
     </svg>
   );
@@ -165,39 +174,43 @@ export default function DashboardPage() {
           {/* Metric Cards */}
           <div className="col-span-12 lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Revenue Card */}
-            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-lg transition-all">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-indigo-100 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-indigo-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition-all overflow-hidden flex flex-col">
+              <div className="p-5 flex-1">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <span className="text-gray-500 text-xs font-medium uppercase tracking-wide">Revenue</span>
                   </div>
-                  <span className="text-gray-500 text-xs font-medium uppercase tracking-wide">Revenue</span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">+24%</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">+24%</span>
+                <div className="text-3xl font-bold text-gray-900 mb-1">$21.840</div>
+                <div className="text-gray-400 text-xs">$4.200 ad spend</div>
               </div>
-              <div className="text-3xl font-bold text-gray-900 mb-1">$21.840</div>
-              <div className="text-gray-400 text-xs mb-3">$4.200 ad spend</div>
-              <Sparkline color="violet" />
+              <WaveSparkline color="#7c3aed" id="revenue" trend="up" />
             </div>
 
             {/* Conversions Card */}
-            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-lg transition-all">
-              <div className="flex items-center justify-between mb-2">
-                <div className="flex items-center gap-2">
-                  <div className="w-8 h-8 rounded-full bg-emerald-100 flex items-center justify-center">
-                    <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-                    </svg>
+            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition-all overflow-hidden flex flex-col">
+              <div className="p-5 flex-1">
+                <div className="flex items-center justify-between mb-2">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 rounded-full bg-amber-100 flex items-center justify-center">
+                      <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                    </div>
+                    <span className="text-gray-500 text-xs font-medium uppercase tracking-wide">Conversions</span>
                   </div>
-                  <span className="text-gray-500 text-xs font-medium uppercase tracking-wide">Conversions</span>
+                  <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">+12%</span>
                 </div>
-                <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">+12%</span>
+                <div className="text-3xl font-bold text-gray-900 mb-1">428</div>
+                <div className="text-gray-400 text-xs">$9.8 cost per acquisition</div>
               </div>
-              <div className="text-3xl font-bold text-gray-900 mb-1">428</div>
-              <div className="text-gray-400 text-xs mb-3">$9.8 cost per acquisition</div>
-              <Sparkline color="emerald" />
+              <WaveSparkline color="#f59e0b" id="conversions" trend="moderate" />
             </div>
 
             {/* Active Ads Card */}
