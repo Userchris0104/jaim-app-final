@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 // Demo data
 const revenueData = [
@@ -11,10 +11,12 @@ const revenueData = [
 ];
 
 const topAds = [
-  { id: 1, name: "Women's Jacquard Overshirt – Green", roas: "4.2x", revenue: "$983", type: "STATIC_IMAGE", image: "/fashion-1.jpg" },
-  { id: 2, name: "Rings-diamond", roas: "4.7x", revenue: "$1,183", type: "STATIC_IMAGE", image: "/jewelry-1.png" },
-  { id: 3, name: "Rings-diamond", roas: "5.2x", revenue: "$1,383", type: "STATIC_IMAGE", image: "/jewelry-2.png" },
+  { id: 1, name: "Women's Jacquard Overshirt – Green", roas: "4.2x", revenue: "$983", type: "STATIC_IMAGE", image: "/fashion-1.jpg", platform: "Instagram" },
+  { id: 2, name: "Rings-diamond", roas: "4.7x", revenue: "$1,183", type: "STATIC_IMAGE", image: "/jewelry-1.png", platform: "Facebook" },
+  { id: 3, name: "Rings-diamond", roas: "5.2x", revenue: "$1,383", type: "STATIC_IMAGE", image: "/jewelry-2.png", platform: "TikTok" },
 ];
+
+type Ad = typeof topAds[number];
 
 const ugcCreators = [
   { id: 1, initials: "SC", name: "Sarah Chen", niche: "Skincare & Beauty", match: 98, followers: "245K", specialty: "Authentic reviews", price: "$350/video", color: "from-violet-500 to-purple-600" },
@@ -79,10 +81,98 @@ function WaveSparkline({ color, id, trend = "up" }: { color: string; id: string;
   );
 }
 
+// Ad Preview Modal
+function AdModal({ ad, onClose }: { ad: Ad | null; onClose: () => void }) {
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    if (ad) {
+      document.addEventListener("keydown", handleEscape);
+      document.body.style.overflow = "hidden";
+    }
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+      document.body.style.overflow = "";
+    };
+  }, [ad, onClose]);
+
+  if (!ad) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn"
+      style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl max-w-[480px] w-full shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Close Button */}
+        <button
+          onClick={onClose}
+          className="absolute top-4 right-4 w-8 h-8 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors z-10"
+        >
+          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+
+        {/* Ad Image */}
+        <div className="aspect-square relative bg-gradient-to-br from-gray-200 to-gray-300">
+          <div className="absolute inset-0 flex items-center justify-center">
+            <span className="text-8xl">👔</span>
+          </div>
+          {/* Type Badge */}
+          <div className="absolute top-4 left-4 px-3 py-1.5 bg-violet-600 text-white text-xs font-bold rounded-lg uppercase">
+            {ad.type}
+          </div>
+          {/* Live Badge */}
+          <div className="absolute top-4 right-14 flex items-center gap-1.5 px-3 py-1.5 bg-emerald-500 text-white text-xs font-bold rounded-lg">
+            <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
+            LIVE
+          </div>
+        </div>
+
+        {/* Ad Info */}
+        <div className="p-6">
+          <h3 className="text-xl font-bold text-gray-900 mb-4">{ad.name}</h3>
+
+          {/* Stats Row */}
+          <div className="grid grid-cols-3 gap-4 mb-6">
+            <div className="text-center p-3 bg-gray-50 rounded-xl">
+              <div className="text-xs text-gray-500 mb-1">ROAS</div>
+              <div className="text-lg font-bold text-emerald-600">{ad.roas}</div>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded-xl">
+              <div className="text-xs text-gray-500 mb-1">Revenue</div>
+              <div className="text-lg font-bold text-gray-900">{ad.revenue}</div>
+            </div>
+            <div className="text-center p-3 bg-gray-50 rounded-xl">
+              <div className="text-xs text-gray-500 mb-1">Platform</div>
+              <div className="text-lg font-bold text-gray-900">{ad.platform}</div>
+            </div>
+          </div>
+
+          {/* View Full Report Button */}
+          <button className="w-full py-3 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2">
+            View Full Report
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DashboardPage() {
   const [timeRange, setTimeRange] = useState<"7" | "14" | "30">("14");
   const [chartType, setChartType] = useState<"revenue" | "spend">("revenue");
   const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null);
+  const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
 
   const maxRevenue = Math.max(...revenueData.map(d => d.revenue));
 
@@ -473,7 +563,11 @@ export default function DashboardPage() {
           <div className="p-5">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               {topAds.map((ad) => (
-                <div key={ad.id} className="group relative rounded-2xl overflow-hidden border border-gray-100 hover:border-violet-200 hover:shadow-lg transition-all cursor-pointer bg-gray-50">
+                <div
+                  key={ad.id}
+                  onClick={() => setSelectedAd(ad)}
+                  className="group relative rounded-2xl overflow-hidden border border-gray-100 hover:border-violet-200 hover:shadow-lg transition-all cursor-pointer bg-gray-50"
+                >
                   {/* Image */}
                   <div className="aspect-square relative">
                     <div className="absolute inset-0 bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center">
@@ -694,6 +788,9 @@ export default function DashboardPage() {
           </div>
         </div>
       </div>
+
+      {/* Ad Preview Modal */}
+      <AdModal ad={selectedAd} onClose={() => setSelectedAd(null)} />
     </div>
   );
 }
