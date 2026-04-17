@@ -5,6 +5,8 @@
  * DELETE /api/brand-style - Remove brand style profile
  */
 
+import { getStoreFromCookieOrFallback } from '../lib/store-cookie';
+
 interface Env {
   DB: D1Database;
   R2: R2Bucket;
@@ -22,13 +24,11 @@ interface BrandStyleProfile {
 
 // GET - Fetch current brand style
 export const onRequestGet: PagesFunction<Env> = async (context) => {
-  const { env } = context;
+  const { env, request } = context;
 
   try {
-    // Get active store - ACTUAL schema: connected_at, no is_active column
-    const store = await env.DB.prepare(
-      'SELECT id, brand_style_profile, brand_reference_images, brand_style_updated_at FROM stores ORDER BY connected_at DESC LIMIT 1'
-    ).first<any>();
+    // Get store from cookie or fall back to most recent
+    const { store } = await getStoreFromCookieOrFallback(env.DB, request);
 
     if (!store) {
       return Response.json({ error: 'No store connected' }, { status: 400 });
@@ -71,10 +71,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const formData = await request.formData();
     const action = formData.get('action') as string;
 
-    // Get active store - ACTUAL schema
-    const store = await env.DB.prepare(
-      'SELECT * FROM stores ORDER BY connected_at DESC LIMIT 1'
-    ).first<any>();
+    // Get store from cookie or fall back to most recent
+    const { store } = await getStoreFromCookieOrFallback(env.DB, request);
 
     if (!store) {
       return Response.json({ error: 'No store connected' }, { status: 400 });
@@ -240,12 +238,11 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
 // DELETE - Remove brand style profile
 export const onRequestDelete: PagesFunction<Env> = async (context) => {
-  const { env } = context;
+  const { env, request } = context;
 
   try {
-    const store = await env.DB.prepare(
-      'SELECT * FROM stores ORDER BY connected_at DESC LIMIT 1'
-    ).first<any>();
+    // Get store from cookie or fall back to most recent
+    const { store } = await getStoreFromCookieOrFallback(env.DB, request);
 
     if (!store) {
       return Response.json({ error: 'No store connected' }, { status: 400 });

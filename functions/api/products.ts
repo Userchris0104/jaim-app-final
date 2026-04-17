@@ -1,8 +1,13 @@
 /**
  * API endpoint for products
- * GET /api/products - Returns products from connected store
+ * GET /api/products - Returns products from current store (cookie-based)
  * POST /api/products - Actions: sync, disconnect
  */
+
+import {
+  getStoreFromCookieOrFallback,
+  setStoreIdCookie,
+} from '../lib/store-cookie';
 
 interface Env {
   DB: D1Database;
@@ -15,16 +20,14 @@ interface Env {
 const API_VERSION = '2024-01';
 
 export const onRequestGet: PagesFunction<Env> = async (context) => {
-  const { env } = context;
-  const url = new URL(context.request.url);
+  const { env, request } = context;
+  const url = new URL(request.url);
   const limit = parseInt(url.searchParams.get("limit") || "50");
   const offset = parseInt(url.searchParams.get("offset") || "0");
 
   try {
-    // Get connected store - ACTUAL schema: shop_domain, access_token, store_name, store_email, connected_at
-    const store = await env.DB.prepare(
-      'SELECT * FROM stores ORDER BY connected_at DESC LIMIT 1'
-    ).first<any>();
+    // Get store from cookie or fall back to most recent
+    const { store, storeId, usedFallback } = await getStoreFromCookieOrFallback(env.DB, request);
 
     if (!store) {
       return Response.json({
@@ -33,6 +36,12 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         products: [],
         total: 0,
       });
+    }
+
+    // If we used fallback, set the cookie for future requests
+    const headers = new Headers({ 'Content-Type': 'application/json' });
+    if (usedFallback && storeId) {
+      headers.set('Set-Cookie', setStoreIdCookie(storeId));
     }
 
     // Get products - ACTUAL schema: shopify_id, image_url, images, price_min, price_max, status
@@ -48,7 +57,7 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       'SELECT COUNT(*) as count FROM products WHERE store_id = ?'
     ).bind(store.id).first<{ count: number }>();
 
-    return Response.json({
+    const responseData = {
       connected: true,
       store: {
         id: store.id,
@@ -85,7 +94,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         };
       }),
       total: countResult?.count || 0,
-    });
+    };
+
+    return new Response(JSON.stringify(responseData), { headers });
   } catch (error) {
     console.error("Error fetching products:", error);
     return Response.json(
@@ -96,16 +107,14 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 };
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
-  const { env } = context;
+  const { env, request } = context;
 
   try {
-    const formData = await context.request.formData();
+    const formData = await request.formData();
     const action = formData.get("action");
 
-    // Get connected store - ACTUAL schema
-    const store = await env.DB.prepare(
-      'SELECT * FROM stores ORDER BY connected_at DESC LIMIT 1'
-    ).first<any>();
+    // Get store from cookie or fall back to most recent
+    const { store } = await getStoreFromCookieOrFallback(env.DB, request);
 
     if (!store) {
       return Response.json(
@@ -135,11 +144,29 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     }
 
     if (action === "disconnect") {
-      // Delete products first (foreign key)
+      // Use /api/stores endpoint for proper disconnect with cookie handling
+      // This endpoint is kept for backwards compatibility but redirects to stores API logic
       await env.DB.prepare('DELETE FROM products WHERE store_id = ?').bind(store.id).run();
-      // Delete store
+      await env.DB.prepare('DELETE FROM generated_ads WHERE store_id = ?').bind(store.id).run();
       await env.DB.prepare('DELETE FROM stores WHERE id = ?').bind(store.id).run();
-      return Response.json({ success: true, disconnected: true });
+
+      // Get next available store to set as current
+      const nextStore = await env.DB.prepare(
+        'SELECT id FROM stores ORDER BY connected_at DESC LIMIT 1'
+      ).first<{ id: string }>();
+
+      const headers = new Headers({ 'Content-Type': 'application/json' });
+      if (nextStore) {
+        headers.set('Set-Cookie', setStoreIdCookie(nextStore.id));
+      } else {
+        // No stores left, clear cookie
+        headers.set('Set-Cookie', 'current_store_id=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0');
+      }
+
+      return new Response(
+        JSON.stringify({ success: true, disconnected: true, nextStoreId: nextStore?.id || null }),
+        { headers }
+      );
     }
 
     return Response.json(

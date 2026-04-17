@@ -3,6 +3,8 @@
  * GET /auth/shopify/callback
  */
 
+import { setStoreIdCookie } from '../../lib/store-cookie';
+
 interface Env {
   DB: D1Database;
   SHOPIFY_API_KEY: string;
@@ -141,11 +143,19 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       return Response.redirect(`${url.origin}/products?error=db_write_failed&detail=${encodeURIComponent(dbError.message || 'unknown')}`);
     }
 
-    // Clear the state cookie and redirect to products
+    // Determine the store ID to set as current
+    const currentStoreId = existingStore ? existingStore.id : storeId;
+
+    // Clear the state cookie, set current store cookie, and redirect to products
     const headers = new Headers();
-    headers.set(
+    // Multiple Set-Cookie headers need to use append
+    headers.append(
       "Set-Cookie",
       "shopify_oauth_state=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0"
+    );
+    headers.append(
+      "Set-Cookie",
+      setStoreIdCookie(currentStoreId)
     );
     headers.set("Location", `${url.origin}/products?connected=true`);
 

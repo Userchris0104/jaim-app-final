@@ -4,6 +4,8 @@
  * GET /api/generate-ad/:id - Get ad status
  */
 
+import { getStoreFromCookieOrFallback } from '../lib/store-cookie';
+
 interface Env {
   DB: D1Database;
   R2: R2Bucket;
@@ -265,23 +267,30 @@ async function generateImage(
 }
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
-  const { env } = context;
+  const { env, request } = context;
 
   try {
-    const body = await context.request.json() as { productId: string };
+    const body = await request.json() as { productId: string };
     const { productId } = body;
 
     if (!productId) {
       return Response.json({ error: 'Product ID required' }, { status: 400 });
     }
 
-    // Get the product
+    // Get current store from cookie
+    const { store } = await getStoreFromCookieOrFallback(env.DB, request);
+
+    if (!store) {
+      return Response.json({ error: 'No store connected' }, { status: 400 });
+    }
+
+    // Get the product and validate it belongs to the current store
     const product = await env.DB.prepare(
-      'SELECT * FROM products WHERE id = ?'
-    ).bind(productId).first<Product>();
+      'SELECT * FROM products WHERE id = ? AND store_id = ?'
+    ).bind(productId, store.id).first<Product>();
 
     if (!product) {
-      return Response.json({ error: 'Product not found' }, { status: 404 });
+      return Response.json({ error: 'Product not found or belongs to different store' }, { status: 404 });
     }
 
     // Create ad record with 'DRAFT' status using production schema
@@ -348,8 +357,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
 
 // GET endpoint to check ad status
 export const onRequestGet: PagesFunction<Env> = async (context) => {
-  const { env } = context;
-  const url = new URL(context.request.url);
+  const { env, request } = context;
+  const url = new URL(request.url);
   const adId = url.searchParams.get('id');
 
   if (!adId) {
@@ -357,9 +366,17 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   }
 
   try {
+    // Get current store from cookie
+    const { store } = await getStoreFromCookieOrFallback(env.DB, request);
+
+    if (!store) {
+      return Response.json({ error: 'No store connected' }, { status: 400 });
+    }
+
+    // Get ad and validate it belongs to the current store
     const ad = await env.DB.prepare(
-      'SELECT * FROM generated_ads WHERE id = ?'
-    ).bind(adId).first();
+      'SELECT * FROM generated_ads WHERE id = ? AND store_id = ?'
+    ).bind(adId, store.id).first();
 
     if (!ad) {
       return Response.json({ error: 'Ad not found' }, { status: 404 });

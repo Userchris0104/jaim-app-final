@@ -1,5 +1,5 @@
 import { NavLink } from "react-router";
-import { useState } from "react";
+import StoreSelector from "./StoreSelector";
 
 const navItems = [
   {
@@ -148,31 +148,8 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
         </div>
       )}
 
-      {/* Store Info */}
-      {!isCollapsed && (
-        <div className="p-4 border-t border-gray-100">
-          <div className="bg-gradient-to-br from-slate-50 via-white to-indigo-50/30 rounded-2xl p-4 border border-gray-100">
-            <div className="flex items-center gap-3 mb-3">
-              <div className="w-11 h-11 rounded-xl bg-gradient-to-br from-indigo-500 to-violet-500 flex items-center justify-center text-sm font-bold text-white shadow-lg shadow-indigo-500/30">
-                DS
-              </div>
-              <div className="flex-1 min-w-0">
-                <div className="font-semibold text-sm text-gray-900 truncate">Demo Store</div>
-                <div className="text-xs text-gray-400 truncate">demo.myshopify.com</div>
-              </div>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-xs text-emerald-600 font-medium">
-                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse shadow-lg shadow-emerald-500/50" />
-                Connected
-              </div>
-              <span className="px-2 py-1 bg-gradient-to-r from-indigo-100 to-violet-100 text-indigo-700 rounded-lg text-xs font-semibold">
-                Starter
-              </span>
-            </div>
-          </div>
-        </div>
-      )}
+      {/* Store Selector */}
+      <StoreSelector isCollapsed={isCollapsed} />
 
       {/* Collapse Toggle */}
       <div className="p-4 border-t border-gray-100">

@@ -16,12 +16,15 @@ interface Store {
   email?: string;
   currency?: string;
   connectedAt?: string;
+  isCurrent?: boolean;
 }
 
 export default function SettingsPage() {
-  // Store connection state
-  const [store, setStore] = useState<Store | null>(null);
+  // Store connection state - multi-store support
+  const [stores, setStores] = useState<Store[]>([]);
+  const [currentStore, setCurrentStore] = useState<Store | null>(null);
   const [storeLoading, setStoreLoading] = useState(true);
+  const [disconnecting, setDisconnecting] = useState<string | null>(null);
 
   // Brand style state
   const [brandImages, setBrandImages] = useState<string[]>([]);
@@ -42,18 +45,48 @@ export default function SettingsPage() {
   const fetchStoreConnection = async () => {
     try {
       setStoreLoading(true);
-      const response = await fetch('/api/products');
+      const response = await fetch('/api/stores');
       const data = await response.json();
-      if (data.connected && data.store) {
-        setStore(data.store);
+      if (data.success && data.stores) {
+        setStores(data.stores);
+        setCurrentStore(data.stores.find((s: Store) => s.isCurrent) || null);
       } else {
-        setStore(null);
+        setStores([]);
+        setCurrentStore(null);
       }
     } catch (error) {
-      console.error('Error fetching store connection:', error);
-      setStore(null);
+      console.error('Error fetching stores:', error);
+      setStores([]);
+      setCurrentStore(null);
     } finally {
       setStoreLoading(false);
+    }
+  };
+
+  const handleDisconnectStore = async (storeId: string) => {
+    if (!confirm('Are you sure you want to disconnect this store? All products and ads for this store will be deleted.')) {
+      return;
+    }
+
+    setDisconnecting(storeId);
+
+    try {
+      const response = await fetch('/api/stores', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'disconnect', storeId }),
+      });
+
+      if (response.ok) {
+        // Refresh stores list
+        await fetchStoreConnection();
+        // Refresh brand style since store might have changed
+        await fetchBrandStyle();
+      }
+    } catch (error) {
+      console.error('Error disconnecting store:', error);
+    } finally {
+      setDisconnecting(null);
     }
   };
 
@@ -413,58 +446,108 @@ export default function SettingsPage() {
           )}
         </div>
 
-        {/* Store Connection */}
+        {/* Store Connections - Multi-store support */}
         <div className="bg-white rounded-2xl border border-gray-100 p-6">
-          <h3 className="font-semibold text-gray-900 mb-4">Store Connection</h3>
-          <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
-            <div className="flex items-center gap-4">
-              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
-                store ? 'bg-gradient-to-br from-emerald-500 to-green-600' : 'bg-gray-300'
-              }`}>
-                <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
+          <div className="flex items-center justify-between mb-4">
+            <h3 className="font-semibold text-gray-900">Connected Stores</h3>
+            <a
+              href="/products"
+              className="text-sm text-violet-600 hover:text-violet-700 font-medium flex items-center gap-1"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+              </svg>
+              Add Store
+            </a>
+          </div>
+
+          {storeLoading ? (
+            <div className="p-4 bg-gray-50 rounded-xl animate-pulse">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 rounded-xl bg-gray-200" />
+                <div className="flex-1">
+                  <div className="h-4 bg-gray-200 rounded w-32 mb-2" />
+                  <div className="h-3 bg-gray-100 rounded w-48" />
+                </div>
+              </div>
+            </div>
+          ) : stores.length === 0 ? (
+            <div className="p-6 bg-gray-50 rounded-xl text-center">
+              <div className="w-12 h-12 rounded-xl bg-gray-200 flex items-center justify-center mx-auto mb-3">
+                <svg className="w-6 h-6 text-gray-400" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M21.958 4.285A2.78 2.78 0 0019.78 2h-1.157a2.78 2.78 0 00-2.592 1.78L14.06 9.572H9.94L7.969 3.78A2.78 2.78 0 005.377 2H4.22a2.78 2.78 0 00-2.178 2.285L.084 12.58a1 1 0 00.985 1.158h4.156l-.98 7.203a1 1 0 00.988 1.139h3.534a1 1 0 00.988-.861l1.245-9.148h2l1.245 9.148a1 1 0 00.988.861h3.534a1 1 0 00.988-1.139l-.98-7.203h4.156a1 1 0 00.985-1.158l-1.958-8.295z"/>
                 </svg>
               </div>
-              <div>
-                {storeLoading ? (
-                  <>
-                    <div className="font-medium text-gray-900">Shopify</div>
-                    <div className="text-sm text-gray-400">Loading...</div>
-                  </>
-                ) : store ? (
-                  <>
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium text-gray-900">{store.name || 'Shopify Store'}</span>
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">
-                        Connected
-                      </span>
-                    </div>
-                    <div className="text-sm text-gray-500">{store.domain}</div>
-                  </>
-                ) : (
-                  <>
-                    <div className="font-medium text-gray-900">Shopify</div>
-                    <div className="text-sm text-gray-500">Not connected</div>
-                  </>
-                )}
-              </div>
+              <p className="text-gray-600 font-medium mb-1">No stores connected</p>
+              <p className="text-sm text-gray-500 mb-4">Connect your Shopify store to start generating ads</p>
+              <a
+                href="/products"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M21.958 4.285A2.78 2.78 0 0019.78 2h-1.157a2.78 2.78 0 00-2.592 1.78L14.06 9.572H9.94L7.969 3.78A2.78 2.78 0 005.377 2H4.22a2.78 2.78 0 00-2.178 2.285L.084 12.58a1 1 0 00.985 1.158h4.156l-.98 7.203a1 1 0 00.988 1.139h3.534a1 1 0 00.988-.861l1.245-9.148h2l1.245 9.148a1 1 0 00.988.861h3.534a1 1 0 00.988-1.139l-.98-7.203h4.156a1 1 0 00.985-1.158l-1.958-8.295z"/>
+                </svg>
+                Connect Shopify Store
+              </a>
             </div>
-            {store ? (
-              <a
-                href="/products"
-                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition"
-              >
-                Manage
-              </a>
-            ) : (
-              <a
-                href="/products"
-                className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition"
-              >
-                Connect
-              </a>
-            )}
-          </div>
+          ) : (
+            <div className="space-y-3">
+              {stores.map((store) => (
+                <div
+                  key={store.id}
+                  className={`flex items-center justify-between p-4 rounded-xl transition ${
+                    store.isCurrent ? 'bg-indigo-50 border border-indigo-100' : 'bg-gray-50'
+                  }`}
+                >
+                  <div className="flex items-center gap-4">
+                    <div className={`w-12 h-12 rounded-xl flex items-center justify-center text-sm font-bold text-white ${
+                      store.isCurrent
+                        ? 'bg-gradient-to-br from-indigo-500 to-violet-500 shadow-lg shadow-indigo-500/30'
+                        : 'bg-gradient-to-br from-emerald-500 to-green-600'
+                    }`}>
+                      {store.name?.split(/[\s-]+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || 'ST'}
+                    </div>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <span className="font-medium text-gray-900">{store.name || 'Shopify Store'}</span>
+                        {store.isCurrent && (
+                          <span className="px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-bold">
+                            Current
+                          </span>
+                        )}
+                        <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-medium">
+                          Connected
+                        </span>
+                      </div>
+                      <div className="text-sm text-gray-500">{store.domain}</div>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <a
+                      href="/products"
+                      className="px-3 py-2 bg-white border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition"
+                    >
+                      Manage
+                    </a>
+                    <button
+                      onClick={() => handleDisconnectStore(store.id)}
+                      disabled={disconnecting === store.id}
+                      className="px-3 py-2 bg-white border border-red-200 text-red-600 rounded-lg text-sm font-medium hover:bg-red-50 transition disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      {disconnecting === store.id ? (
+                        <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                        </svg>
+                      ) : (
+                        'Disconnect'
+                      )}
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Ad Platforms */}
