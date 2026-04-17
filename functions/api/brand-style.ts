@@ -25,9 +25,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const { env } = context;
 
   try {
-    // Get active store
+    // Get active store - ACTUAL schema: connected_at, no is_active column
     const store = await env.DB.prepare(
-      'SELECT id, brand_style_profile, brand_reference_images, brand_style_updated_at FROM stores WHERE is_active = 1 ORDER BY created_at DESC LIMIT 1'
+      'SELECT id, brand_style_profile, brand_reference_images, brand_style_updated_at FROM stores ORDER BY connected_at DESC LIMIT 1'
     ).first<any>();
 
     if (!store) {
@@ -71,9 +71,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const formData = await request.formData();
     const action = formData.get('action') as string;
 
-    // Get active store
+    // Get active store - ACTUAL schema
     const store = await env.DB.prepare(
-      'SELECT * FROM stores WHERE is_active = 1 ORDER BY created_at DESC LIMIT 1'
+      'SELECT * FROM stores ORDER BY connected_at DESC LIMIT 1'
     ).first<any>();
 
     if (!store) {
@@ -178,10 +178,6 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         } catch {}
       }
 
-      if (referenceImages.length === 0) {
-        return Response.json({ error: 'Upload at least one brand image first' }, { status: 400 });
-      }
-
       // Collect all image URLs for analysis
       const imageUrls: string[] = [];
 
@@ -197,26 +193,28 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         }
       }
 
-      // Add Shopify product images if enabled
-      if (includeShopifyImages) {
-        const products = await env.DB.prepare(
-          'SELECT image_urls FROM products WHERE store_id = ? AND is_active = 1 ORDER BY synced_at DESC LIMIT 3'
-        ).bind(store.id).all<{ image_urls: string }>();
+      // Add Shopify product images - ACTUAL schema: images column, status column
+      const products = await env.DB.prepare(
+        'SELECT image_url, images FROM products WHERE store_id = ? AND status = ? ORDER BY synced_at DESC LIMIT 5'
+      ).bind(store.id, 'active').all<{ image_url: string; images: string }>();
 
-        for (const product of products.results) {
-          if (product.image_urls) {
-            try {
-              const urls = JSON.parse(product.image_urls);
-              if (urls[0]) {
-                imageUrls.push(urls[0]); // First image from each product
-              }
-            } catch {}
-          }
+      for (const product of products.results) {
+        // Try primary image_url first
+        if (product.image_url) {
+          imageUrls.push(product.image_url);
+        } else if (product.images) {
+          // Fall back to images JSON array
+          try {
+            const urls = JSON.parse(product.images);
+            if (urls[0]) {
+              imageUrls.push(urls[0]);
+            }
+          } catch {}
         }
       }
 
       if (imageUrls.length === 0) {
-        return Response.json({ error: 'No images available for analysis' }, { status: 400 });
+        return Response.json({ error: 'No images available for analysis. Upload brand images or sync products with images first.' }, { status: 400 });
       }
 
       // Analyze with OpenAI GPT-4o Vision
@@ -246,7 +244,7 @@ export const onRequestDelete: PagesFunction<Env> = async (context) => {
 
   try {
     const store = await env.DB.prepare(
-      'SELECT * FROM stores WHERE is_active = 1 ORDER BY created_at DESC LIMIT 1'
+      'SELECT * FROM stores ORDER BY connected_at DESC LIMIT 1'
     ).first<any>();
 
     if (!store) {

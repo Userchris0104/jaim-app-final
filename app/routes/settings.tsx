@@ -9,7 +9,20 @@ interface BrandStyleProfile {
   conflicts: string | null;
 }
 
+interface Store {
+  id: string;
+  name: string;
+  domain: string;
+  email?: string;
+  currency?: string;
+  connectedAt?: string;
+}
+
 export default function SettingsPage() {
+  // Store connection state
+  const [store, setStore] = useState<Store | null>(null);
+  const [storeLoading, setStoreLoading] = useState(true);
+
   // Brand style state
   const [brandImages, setBrandImages] = useState<string[]>([]);
   const [brandProfile, setBrandProfile] = useState<BrandStyleProfile | null>(null);
@@ -20,10 +33,29 @@ export default function SettingsPage() {
   const [brandSuccess, setBrandSuccess] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Load existing brand style on mount
+  // Load store connection and brand style on mount
   useEffect(() => {
+    fetchStoreConnection();
     fetchBrandStyle();
   }, []);
+
+  const fetchStoreConnection = async () => {
+    try {
+      setStoreLoading(true);
+      const response = await fetch('/api/products');
+      const data = await response.json();
+      if (data.connected && data.store) {
+        setStore(data.store);
+      } else {
+        setStore(null);
+      }
+    } catch (error) {
+      console.error('Error fetching store connection:', error);
+      setStore(null);
+    } finally {
+      setStoreLoading(false);
+    }
+  };
 
   const fetchBrandStyle = async () => {
     try {
@@ -117,11 +149,6 @@ export default function SettingsPage() {
   };
 
   const handleAnalyze = async () => {
-    if (brandImages.length === 0) {
-      setBrandError('Upload at least one brand image first');
-      return;
-    }
-
     setAnalyzing(true);
     setBrandError(null);
 
@@ -293,9 +320,9 @@ export default function SettingsPage() {
           {/* Analyze Button */}
           <button
             onClick={handleAnalyze}
-            disabled={brandImages.length === 0 || analyzing}
+            disabled={analyzing}
             className={`mt-6 w-full py-3 rounded-xl font-semibold transition-all flex items-center justify-center gap-2 ${
-              brandImages.length === 0 || analyzing
+              analyzing
                 ? 'bg-gray-100 text-gray-400 cursor-not-allowed'
                 : 'bg-gradient-to-r from-violet-600 to-purple-600 text-white hover:from-violet-700 hover:to-purple-700 shadow-lg shadow-violet-500/25'
             }`}
@@ -391,19 +418,52 @@ export default function SettingsPage() {
           <h3 className="font-semibold text-gray-900 mb-4">Store Connection</h3>
           <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
             <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-emerald-500 to-green-600 flex items-center justify-center">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center ${
+                store ? 'bg-gradient-to-br from-emerald-500 to-green-600' : 'bg-gray-300'
+              }`}>
                 <svg className="w-6 h-6 text-white" viewBox="0 0 24 24" fill="currentColor">
-                  <path d="M15.337 3.415c-.193-.017-.39-.017-.584-.017-2.18 0-3.89 1.695-4.493 3.322H8.185c-.228 0-.426.16-.474.386l-.277 1.358a.488.488 0 00.474.588h1.747l-1.747 8.73a.488.488 0 00.474.588h1.84a.488.488 0 00.474-.386l1.747-8.932h2.343a.488.488 0 00.474-.588l-.277-1.358a.488.488 0 00-.474-.386h-2.059c.339-.965.976-1.626 1.777-1.626.193 0 .39.017.584.051a.488.488 0 00.537-.353l.277-1.358a.488.488 0 00-.29-.558 3.78 3.78 0 00-.943-.137z"/>
+                  <path d="M21.958 4.285A2.78 2.78 0 0019.78 2h-1.157a2.78 2.78 0 00-2.592 1.78L14.06 9.572H9.94L7.969 3.78A2.78 2.78 0 005.377 2H4.22a2.78 2.78 0 00-2.178 2.285L.084 12.58a1 1 0 00.985 1.158h4.156l-.98 7.203a1 1 0 00.988 1.139h3.534a1 1 0 00.988-.861l1.245-9.148h2l1.245 9.148a1 1 0 00.988.861h3.534a1 1 0 00.988-1.139l-.98-7.203h4.156a1 1 0 00.985-1.158l-1.958-8.295z"/>
                 </svg>
               </div>
               <div>
-                <div className="font-medium text-gray-900">Shopify</div>
-                <div className="text-sm text-gray-500">Not connected</div>
+                {storeLoading ? (
+                  <>
+                    <div className="font-medium text-gray-900">Shopify</div>
+                    <div className="text-sm text-gray-400">Loading...</div>
+                  </>
+                ) : store ? (
+                  <>
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium text-gray-900">{store.name || 'Shopify Store'}</span>
+                      <span className="px-2 py-0.5 rounded-full bg-emerald-100 text-emerald-700 text-xs font-bold">
+                        Connected
+                      </span>
+                    </div>
+                    <div className="text-sm text-gray-500">{store.domain}</div>
+                  </>
+                ) : (
+                  <>
+                    <div className="font-medium text-gray-900">Shopify</div>
+                    <div className="text-sm text-gray-500">Not connected</div>
+                  </>
+                )}
               </div>
             </div>
-            <button className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition">
-              Connect
-            </button>
+            {store ? (
+              <a
+                href="/products"
+                className="px-4 py-2 bg-gray-100 text-gray-700 rounded-lg font-medium hover:bg-gray-200 transition"
+              >
+                Manage
+              </a>
+            ) : (
+              <a
+                href="/products"
+                className="px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition"
+              >
+                Connect
+              </a>
+            )}
           </div>
         </div>
 
