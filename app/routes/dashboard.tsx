@@ -257,9 +257,10 @@ export default function DashboardPage() {
 
   return (
     <div className="min-h-screen bg-gray-50/50">
-      {/* Header */}
-      <header className="sticky top-0 z-40 bg-white/80 backdrop-blur-xl border-b border-gray-100">
-        <div className="px-8 py-5 flex items-center justify-between">
+      {/* Main Content */}
+      <div className="p-8 space-y-6">
+        {/* Page Header */}
+        <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{getGreeting()} 👋</h1>
             <p className="text-gray-500 text-sm">Here's how your ads are performing today</p>
@@ -283,23 +284,8 @@ export default function DashboardPage() {
               </svg>
               <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center">3</span>
             </button>
-
-            {/* Store Badge */}
-            <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-white border border-gray-200 shadow-sm hover:shadow-md hover:border-violet-200 transition-all cursor-pointer">
-              <div className="w-8 h-8 rounded-full bg-gray-200 flex items-center justify-center">
-                <span className="text-gray-400 text-lg">···</span>
-              </div>
-              <span className="text-sm font-medium text-gray-700">'Cejf - Test</span>
-              <svg className="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-              </svg>
-            </div>
           </div>
         </div>
-      </header>
-
-      {/* Main Content */}
-      <div className="p-8 space-y-6">
         {/* Top Row: ROAS + Metrics */}
         <div className="grid grid-cols-12 gap-6">
           {/* ROAS Hero Card */}

@@ -1,5 +1,4 @@
 import { NavLink } from "react-router";
-import StoreSelector from "./StoreSelector";
 
 const navItems = [
   {
@@ -147,9 +146,6 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
           </div>
         </div>
       )}
-
-      {/* Store Selector */}
-      <StoreSelector isCollapsed={isCollapsed} />
 
       {/* Collapse Toggle */}
       <div className="p-4 border-t border-gray-100">
