@@ -18,11 +18,17 @@ interface Product {
   description: string | null;
   vendor: string | null;
   product_type: string | null;
-  tags: string | null;
-  image_url: string | null;
-  images: string | null;
-  price_min: number | null;
-  price_max: number | null;
+  image_urls: string | null;  // JSON array of image URLs
+  price: number | null;
+}
+
+interface BrandStyleProfile {
+  colors: { hex: string; label: string }[];
+  visualTone: string;
+  contentStyle: string;
+  mood: string;
+  keyPatterns: string;
+  conflicts: string | null;
 }
 
 // Creative strategies based on product type
@@ -39,9 +45,20 @@ const CREATIVE_STRATEGIES = {
   default: 'clean_product',
 } as const;
 
+// Get first image from product
+function getProductImage(product: Product): string | null {
+  if (!product.image_urls) return null;
+  try {
+    const images = JSON.parse(product.image_urls);
+    return images[0] || null;
+  } catch {
+    return null;
+  }
+}
+
 // Detect creative strategy based on product
 function detectCreativeStrategy(product: Product): string {
-  const searchText = `${product.title} ${product.product_type || ''} ${product.tags || ''} ${product.description || ''}`.toLowerCase();
+  const searchText = `${product.title} ${product.product_type || ''} ${product.description || ''}`.toLowerCase();
 
   for (const [keyword, strategy] of Object.entries(CREATIVE_STRATEGIES)) {
     if (keyword !== 'default' && searchText.includes(keyword)) {
@@ -55,7 +72,8 @@ function detectCreativeStrategy(product: Product): string {
 // Generate ad copy using OpenAI
 async function generateAdCopy(
   product: Product,
-  apiKey: string
+  apiKey: string,
+  brandStyle?: BrandStyleProfile | null
 ): Promise<{ headline: string; primaryText: string; description: string; cta: string }> {
   // If no API key, return placeholder copy
   if (!apiKey) {
@@ -65,6 +83,12 @@ async function generateAdCopy(
       description: `Shop now and experience the quality of ${product.vendor || 'our brand'}`,
       cta: 'Shop Now',
     };
+  }
+
+  // Build brand context if available
+  let brandContext = '';
+  if (brandStyle) {
+    brandContext = `\nBrand tone: ${brandStyle.mood}. Match this voice in the copy.`;
   }
 
   try {
@@ -80,7 +104,7 @@ async function generateAdCopy(
           {
             role: 'system',
             content: `You are an expert ad copywriter. Generate compelling ad copy for social media ads.
-Be concise, engaging, and focus on benefits. Use emotional triggers and clear calls to action.
+Be concise, engaging, and focus on benefits. Use emotional triggers and clear calls to action.${brandContext}
 Return JSON only with these exact fields: headline (max 40 chars), primaryText (max 125 chars), description (max 90 chars), cta (max 20 chars).`,
           },
           {
@@ -89,9 +113,8 @@ Return JSON only with these exact fields: headline (max 40 chars), primaryText (
 Title: ${product.title}
 Type: ${product.product_type || 'General'}
 Description: ${product.description?.replace(/<[^>]*>/g, '').slice(0, 500) || 'No description'}
-Price: $${product.price_min || 0}${product.price_max && product.price_max !== product.price_min ? ` - $${product.price_max}` : ''}
-Brand: ${product.vendor || 'Unknown'}
-Tags: ${product.tags || 'None'}`,
+Price: $${product.price || 0}
+Brand: ${product.vendor || 'Unknown'}`,
           },
         ],
         temperature: 0.7,
@@ -124,8 +147,39 @@ Tags: ${product.tags || 'None'}`,
   }
 }
 
+// Fetch brand style profile for a store
+async function getBrandStyleProfile(db: D1Database, storeId: string): Promise<BrandStyleProfile | null> {
+  try {
+    const store = await db.prepare(
+      'SELECT brand_style_profile FROM stores WHERE id = ?'
+    ).bind(storeId).first<{ brand_style_profile: string | null }>();
+
+    if (store?.brand_style_profile) {
+      return JSON.parse(store.brand_style_profile);
+    }
+  } catch (error) {
+    console.error('Error fetching brand style:', error);
+  }
+  return null;
+}
+
+// Build brand style context for prompt injection
+function buildBrandStyleContext(brandStyle: BrandStyleProfile): string {
+  const colorList = brandStyle.colors.map(c => c.hex).join(', ');
+
+  return `
+BRAND STYLE REQUIREMENTS - Apply these characteristics:
+- Visual tone: ${brandStyle.visualTone}
+- Content style: ${brandStyle.contentStyle}
+- Mood: ${brandStyle.mood}
+- Color palette: ${colorList}
+- Key patterns: ${brandStyle.keyPatterns}
+Match this brand identity while keeping the product as the hero of the ad.
+`;
+}
+
 // Generate image prompt for Gemini
-function generateImagePrompt(product: Product, strategy: string): string {
+function generateImagePrompt(product: Product, strategy: string, brandStyle?: BrandStyleProfile | null): string {
   const productName = product.title;
   const category = product.product_type || 'product';
 
@@ -141,7 +195,14 @@ function generateImagePrompt(product: Product, strategy: string): string {
     ugc_discovery: `Authentic user-generated content style photo of ${productName}. Real person's hand holding the product toward camera. Casual home or lifestyle background, natural lighting. iPhone quality aesthetic, genuine and relatable. The product is clearly visible.`,
   };
 
-  return strategyPrompts[strategy] || strategyPrompts.clean_product;
+  let prompt = strategyPrompts[strategy] || strategyPrompts.clean_product;
+
+  // Inject brand style context if available
+  if (brandStyle) {
+    prompt = buildBrandStyleContext(brandStyle) + '\n' + prompt;
+  }
+
+  return prompt;
 }
 
 // Generate image using Gemini
@@ -223,42 +284,48 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       return Response.json({ error: 'Product not found' }, { status: 404 });
     }
 
-    // Create ad record with 'generating' status
+    // Create ad record with 'DRAFT' status using production schema
     const adId = crypto.randomUUID();
     const strategy = detectCreativeStrategy(product);
+    const productImageUrl = getProductImage(product);
 
+    // Fetch brand style profile (optional - ad generation works without it)
+    const brandStyle = await getBrandStyleProfile(env.DB, product.store_id);
+
+    // Generate ad copy (with brand style if available)
+    const adCopy = await generateAdCopy(product, env.OPENAI_API_KEY, brandStyle);
+
+    // Generate image prompt and image (with brand style if available)
+    const imagePrompt = generateImagePrompt(product, strategy, brandStyle);
+    const imageUrl = await generateImage(imagePrompt, env.GEMINI_API_KEY, productImageUrl);
+
+    // Insert using production schema
     await env.DB.prepare(`
-      INSERT INTO generated_ads (id, store_id, product_id, status, creative_strategy, created_at)
-      VALUES (?, ?, ?, 'generating', ?, datetime('now'))
-    `).bind(adId, product.store_id, productId, strategy).run();
-
-    // Generate ad copy
-    const adCopy = await generateAdCopy(product, env.OPENAI_API_KEY);
-
-    // Generate image prompt and image
-    const imagePrompt = generateImagePrompt(product, strategy);
-    const imageUrl = await generateImage(imagePrompt, env.GEMINI_API_KEY, product.image_url);
-
-    // Update ad with generated content
-    await env.DB.prepare(`
-      UPDATE generated_ads
-      SET headline = ?, primary_text = ?, description = ?, call_to_action = ?,
-          image_url = ?, image_prompt = ?, status = 'ready', updated_at = datetime('now')
-      WHERE id = ?
+      INSERT INTO generated_ads (
+        id, store_id, product_id, script, video_style, status,
+        ad_headline, ad_primary_text, ad_description, ad_cta_button,
+        thumbnail_url, creative_strategy, title, created_at, updated_at
+      )
+      VALUES (?, ?, ?, ?, ?, 'inbox', ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     `).bind(
-      adCopy.headline,
-      adCopy.primaryText,
-      adCopy.description,
-      adCopy.cta,
-      imageUrl,
-      imagePrompt,
-      adId
+      adId,
+      product.store_id,
+      productId,
+      adCopy.primaryText,  // script
+      'static_image',      // video_style
+      adCopy.headline,     // ad_headline
+      adCopy.primaryText,  // ad_primary_text
+      adCopy.description,  // ad_description
+      adCopy.cta,          // ad_cta_button
+      imageUrl,            // thumbnail_url
+      strategy,            // creative_strategy
+      product.title        // title
     ).run();
 
     return Response.json({
       success: true,
       adId,
-      status: 'ready',
+      status: 'inbox',
       ad: {
         id: adId,
         productId,

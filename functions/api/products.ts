@@ -21,10 +21,10 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
   const offset = parseInt(url.searchParams.get("offset") || "0");
 
   try {
-    // Get connected store
+    // Get connected store - using production schema (shopify_domain, shop_name, etc.)
     const store = await env.DB.prepare(
-      'SELECT * FROM stores ORDER BY connected_at DESC LIMIT 1'
-    ).first();
+      'SELECT * FROM stores WHERE is_active = 1 ORDER BY created_at DESC LIMIT 1'
+    ).first<any>();
 
     if (!store) {
       return Response.json({
@@ -35,11 +35,11 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       });
     }
 
-    // Get products
+    // Get products - using production schema
     const productsResult = await env.DB.prepare(`
       SELECT * FROM products
       WHERE store_id = ?
-      ORDER BY updated_at DESC
+      ORDER BY synced_at DESC
       LIMIT ? OFFSET ?
     `).bind(store.id, limit, offset).all();
 
@@ -52,31 +52,35 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       connected: true,
       store: {
         id: store.id,
-        name: store.store_name,
-        domain: store.shop_domain,
-        email: store.store_email,
-        currency: store.currency,
-        plan: store.plan_name,
-        connectedAt: store.connected_at,
+        name: store.shop_name,
+        domain: store.shopify_domain,
+        email: store.shop_email,
+        currency: 'USD',
+        connectedAt: store.created_at,
       },
-      products: productsResult.results.map((p: any) => ({
-        id: p.id,
-        shopifyId: p.shopify_id,
-        title: p.title,
-        description: p.description,
-        vendor: p.vendor,
-        productType: p.product_type,  // For category detection
-        handle: p.handle,
-        status: p.status,
-        imageUrl: p.image_url,
-        images: p.images ? JSON.parse(p.images) : [],  // All product images
-        variants: p.variants ? JSON.parse(p.variants) : [],  // Size/color variants (helps detect gender)
-        priceMin: p.price_min,
-        priceMax: p.price_max,
-        inventory: p.inventory_total,
-        tags: p.tags,  // For category, gender, age, species detection
-        syncedAt: p.synced_at,
-      })),
+      products: productsResult.results.map((p: any) => {
+        // Parse image_urls JSON array
+        let images: string[] = [];
+        try {
+          images = p.image_urls ? JSON.parse(p.image_urls) : [];
+        } catch { images = []; }
+
+        return {
+          id: p.id,
+          shopifyId: p.shopify_product_id,
+          title: p.title,
+          description: p.description,
+          vendor: p.vendor,
+          productType: p.product_type,
+          status: p.is_active ? 'active' : 'inactive',
+          imageUrl: images[0] || null,
+          images,
+          priceMin: p.price,
+          priceMax: p.price,
+          tags: null,
+          syncedAt: p.synced_at,
+        };
+      }),
       total: countResult?.count || 0,
     });
   } catch (error) {
@@ -95,9 +99,9 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const formData = await context.request.formData();
     const action = formData.get("action");
 
-    // Get connected store
+    // Get connected store - using production schema
     const store = await env.DB.prepare(
-      'SELECT * FROM stores ORDER BY connected_at DESC LIMIT 1'
+      'SELECT * FROM stores WHERE is_active = 1 ORDER BY created_at DESC LIMIT 1'
     ).first<any>();
 
     if (!store) {
@@ -122,7 +126,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
         return Response.json({
           success: false,
           error: syncError.message || "Sync failed",
-          debug: { store: store.shop_domain }
+          debug: { store: store.shopify_domain }
         });
       }
     }
@@ -161,12 +165,13 @@ async function syncProducts(
   let hasNextPage = true;
   let debugInfo: any = {};
 
-  const cleanShop = store.shop_domain.replace('.myshopify.com', '');
+  // Use production schema: shopify_domain, shopify_access_token
+  const cleanShop = store.shopify_domain.replace('.myshopify.com', '');
   const shopDomain = `${cleanShop}.myshopify.com`;
 
   debugInfo.shopDomain = shopDomain;
-  debugInfo.hasToken = !!store.access_token;
-  debugInfo.tokenLength = store.access_token?.length;
+  debugInfo.hasToken = !!store.shopify_access_token;
+  debugInfo.tokenLength = store.shopify_access_token?.length;
 
   while (hasNextPage) {
     try {
@@ -180,7 +185,7 @@ async function syncProducts(
 
       const response = await fetch(url, {
         headers: {
-          'X-Shopify-Access-Token': store.access_token,
+          'X-Shopify-Access-Token': store.shopify_access_token,
           'Content-Type': 'application/json',
         },
       });
@@ -233,7 +238,7 @@ async function syncProducts(
 }
 
 /**
- * Save a single product to database
+ * Save a single product to database - using production schema
  */
 async function saveProduct(
   db: D1Database,
@@ -242,75 +247,71 @@ async function saveProduct(
 ): Promise<void> {
   const id = crypto.randomUUID();
 
-  // Extract price range from variants
-  const prices = shopifyProduct.variants?.map((v: any) => parseFloat(v.price)) || [0];
-  const priceMin = Math.min(...prices);
-  const priceMax = Math.max(...prices);
+  // Extract price from first variant
+  const price = shopifyProduct.variants?.[0]?.price
+    ? parseFloat(shopifyProduct.variants[0].price)
+    : 0;
 
-  // Calculate total inventory
-  const inventoryTotal = shopifyProduct.variants?.reduce(
-    (sum: number, v: any) => sum + (v.inventory_quantity || 0),
-    0
-  ) || 0;
-
-  // Get primary image
-  const imageUrl = shopifyProduct.image?.src || shopifyProduct.images?.[0]?.src || null;
-
-  // Store images as JSON
-  const images = JSON.stringify(
+  // Store images as JSON array
+  const imageUrls = JSON.stringify(
     shopifyProduct.images?.map((img: any) => img.src) || []
   );
 
-  // Store variants as JSON
-  const variants = JSON.stringify(
-    shopifyProduct.variants?.map((v: any) => ({
-      id: v.id,
-      title: v.title,
-      price: v.price,
-      sku: v.sku,
-      inventory_quantity: v.inventory_quantity,
-    })) || []
-  );
+  // Product URL
+  const productUrl = shopifyProduct.handle
+    ? `https://example.com/products/${shopifyProduct.handle}`
+    : null;
 
-  await db.prepare(`
-    INSERT INTO products (
-      id, store_id, shopify_id, title, description, vendor, product_type,
-      handle, status, tags, image_url, images, variants, price_min, price_max,
-      inventory_total, synced_at
-    )
-    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-    ON CONFLICT(store_id, shopify_id) DO UPDATE SET
-      title = excluded.title,
-      description = excluded.description,
-      vendor = excluded.vendor,
-      product_type = excluded.product_type,
-      handle = excluded.handle,
-      status = excluded.status,
-      tags = excluded.tags,
-      image_url = excluded.image_url,
-      images = excluded.images,
-      variants = excluded.variants,
-      price_min = excluded.price_min,
-      price_max = excluded.price_max,
-      inventory_total = excluded.inventory_total,
-      updated_at = datetime('now'),
-      synced_at = datetime('now')
-  `).bind(
-    id,
-    storeId,
-    shopifyProduct.id.toString(),
-    shopifyProduct.title,
-    shopifyProduct.body_html || null,
-    shopifyProduct.vendor || null,
-    shopifyProduct.product_type || null,
-    shopifyProduct.handle || null,
-    shopifyProduct.status || 'active',
-    shopifyProduct.tags || null,
-    imageUrl,
-    images,
-    variants,
-    priceMin,
-    priceMax,
-    inventoryTotal
-  ).run();
+  // Check if product already exists
+  const existing = await db.prepare(
+    'SELECT id FROM products WHERE store_id = ? AND shopify_product_id = ?'
+  ).bind(storeId, shopifyProduct.id.toString()).first();
+
+  if (existing) {
+    // Update existing product
+    await db.prepare(`
+      UPDATE products SET
+        title = ?,
+        description = ?,
+        vendor = ?,
+        product_type = ?,
+        image_urls = ?,
+        price = ?,
+        product_url = ?,
+        is_active = ?,
+        synced_at = datetime('now')
+      WHERE id = ?
+    `).bind(
+      shopifyProduct.title,
+      shopifyProduct.body_html || null,
+      shopifyProduct.vendor || null,
+      shopifyProduct.product_type || null,
+      imageUrls,
+      price,
+      productUrl,
+      shopifyProduct.status === 'active' ? 1 : 0,
+      existing.id
+    ).run();
+  } else {
+    // Insert new product
+    await db.prepare(`
+      INSERT INTO products (
+        id, store_id, shopify_product_id, title, description, vendor, product_type,
+        image_urls, price, product_url, is_active, synced_at
+      )
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+    `).bind(
+      id,
+      storeId,
+      shopifyProduct.id.toString(),
+      shopifyProduct.title,
+      shopifyProduct.body_html || null,
+      shopifyProduct.vendor || null,
+      shopifyProduct.product_type || null,
+      imageUrls,
+      price,
+      productUrl,
+      shopifyProduct.status === 'active' ? 1 : 0
+    ).run();
+  }
 }

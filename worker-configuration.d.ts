@@ -5,4 +5,6 @@ interface Env {
   SHOPIFY_API_KEY: string;
   SHOPIFY_API_SECRET: string;
   APP_URL: string;
+  OPENAI_API_KEY: string;
+  GEMINI_API_KEY: string;
 }
