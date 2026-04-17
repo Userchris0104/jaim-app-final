@@ -34,21 +34,37 @@ interface ProductsData {
   total: number;
 }
 
+interface GeneratedAd {
+  id: string;
+  headline: string;
+  primaryText: string;
+  description: string;
+  cta: string;
+  imageUrl: string | null;
+  strategy: string;
+}
+
 // Product Preview Modal
 function ProductModal({
   product,
   currency,
   onClose,
   formatPrice,
+  onAdGenerated,
 }: {
   product: Product | null;
   currency?: string;
   onClose: () => void;
   formatPrice: (min?: number, max?: number, currency?: string) => string;
+  onAdGenerated?: (ad: GeneratedAd) => void;
 }) {
+  const [generating, setGenerating] = useState(false);
+  const [generatedAd, setGeneratedAd] = useState<GeneratedAd | null>(null);
+  const [genError, setGenError] = useState<string | null>(null);
+
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
-      if (e.key === "Escape") onClose();
+      if (e.key === "Escape" && !generating) onClose();
     };
     if (product) {
       document.addEventListener("keydown", handleEscape);
@@ -58,7 +74,41 @@ function ProductModal({
       document.removeEventListener("keydown", handleEscape);
       document.body.style.overflow = "";
     };
-  }, [product, onClose]);
+  }, [product, onClose, generating]);
+
+  // Reset state when product changes
+  useEffect(() => {
+    setGeneratedAd(null);
+    setGenError(null);
+  }, [product?.id]);
+
+  const handleGenerateAd = async () => {
+    if (!product || generating) return;
+
+    setGenerating(true);
+    setGenError(null);
+
+    try {
+      const response = await fetch('/api/generate-ad', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ productId: product.id }),
+      });
+
+      const result = await response.json();
+
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || 'Failed to generate ad');
+      }
+
+      setGeneratedAd(result.ad);
+      onAdGenerated?.(result.ad);
+    } catch (err: any) {
+      setGenError(err.message || 'Failed to generate ad');
+    } finally {
+      setGenerating(false);
+    }
+  };
 
   if (!product) return null;
 
@@ -167,12 +217,86 @@ function ProductModal({
             </div>
           )}
 
+          {/* Error Message */}
+          {genError && (
+            <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-xl text-sm text-red-600">
+              {genError}
+            </div>
+          )}
+
+          {/* Generated Ad Preview */}
+          {generatedAd && (
+            <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
+              <div className="flex items-center gap-2 mb-3">
+                <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span className="font-semibold text-emerald-700">Ad Generated!</span>
+              </div>
+              {generatedAd.imageUrl && (
+                <img
+                  src={generatedAd.imageUrl}
+                  alt="Generated Ad"
+                  className="w-full aspect-square object-cover rounded-lg mb-3"
+                />
+              )}
+              <div className="space-y-2">
+                <p className="font-bold text-gray-900">{generatedAd.headline}</p>
+                <p className="text-sm text-gray-600">{generatedAd.primaryText}</p>
+                {generatedAd.description && (
+                  <p className="text-xs text-gray-500">{generatedAd.description}</p>
+                )}
+                <span className="inline-block px-3 py-1 bg-violet-600 text-white text-xs font-semibold rounded-lg">
+                  {generatedAd.cta}
+                </span>
+              </div>
+              <div className="mt-3 pt-3 border-t border-emerald-200 flex items-center justify-between">
+                <span className="text-xs text-gray-500">Strategy: {generatedAd.strategy}</span>
+                <a
+                  href="/ads"
+                  className="text-sm text-violet-600 hover:text-violet-700 font-medium"
+                >
+                  View in Ads
+                </a>
+              </div>
+            </div>
+          )}
+
           {/* Generate Ad Button */}
-          <button className="w-full py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-violet-500/25">
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
-            </svg>
-            Generate Ad
+          <button
+            onClick={handleGenerateAd}
+            disabled={generating}
+            className={`w-full py-3 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg ${
+              generating
+                ? "bg-gray-400 cursor-not-allowed"
+                : generatedAd
+                ? "bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-emerald-500/25"
+                : "bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 shadow-violet-500/25"
+            }`}
+          >
+            {generating ? (
+              <>
+                <svg className="w-5 h-5 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Generating Ad...
+              </>
+            ) : generatedAd ? (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                </svg>
+                Generate Another
+              </>
+            ) : (
+              <>
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+                Generate Ad
+              </>
+            )}
           </button>
         </div>
       </div>
@@ -629,6 +753,10 @@ export default function ProductsPage() {
         currency={data?.store?.currency}
         onClose={() => setSelectedProduct(null)}
         formatPrice={formatPrice}
+        onAdGenerated={(ad) => {
+          setSuccessMessage(`Ad generated for ${selectedProduct?.title}!`);
+          setTimeout(() => setSuccessMessage(null), 5000);
+        }}
       />
     </div>
   );
