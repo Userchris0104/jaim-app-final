@@ -34,12 +34,159 @@ interface ProductsData {
   total: number;
 }
 
+// Product Preview Modal
+function ProductModal({
+  product,
+  currency,
+  onClose,
+  formatPrice,
+}: {
+  product: Product | null;
+  currency?: string;
+  onClose: () => void;
+  formatPrice: (min?: number, max?: number, currency?: string) => string;
+}) {
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    if (product) {
+      document.addEventListener("keydown", handleEscape);
+      document.body.style.overflow = "hidden";
+    }
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+      document.body.style.overflow = "";
+    };
+  }, [product, onClose]);
+
+  if (!product) return null;
+
+  // Parse tags into array
+  const tags = product.tags ? product.tags.split(",").map((t) => t.trim()).filter(Boolean) : [];
+
+  // Clean description HTML
+  const cleanDescription = product.description
+    ? product.description.replace(/<[^>]*>/g, "")
+    : null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 animate-fadeIn"
+      style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl max-w-lg w-full shadow-2xl overflow-hidden max-h-[90vh] flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Product Image */}
+        <div className="relative">
+          {product.imageUrl ? (
+            <img
+              src={product.imageUrl}
+              alt={product.title}
+              className="w-full aspect-square object-cover rounded-t-xl"
+            />
+          ) : (
+            <div className="w-full aspect-square bg-gray-100 flex items-center justify-center rounded-t-xl">
+              <svg className="w-24 h-24 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+          )}
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 w-8 h-8 bg-black/50 hover:bg-black/70 rounded-full flex items-center justify-center text-white transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+          {/* Status Badge */}
+          <div className={`absolute top-4 left-4 px-3 py-1.5 rounded-lg text-xs font-bold ${
+            product.status === "active" ? "bg-emerald-500 text-white" : "bg-gray-500 text-white"
+          }`}>
+            {product.status}
+          </div>
+        </div>
+
+        {/* Product Info - Scrollable */}
+        <div className="p-6 overflow-y-auto flex-1">
+          {/* Title */}
+          <h2 className="text-xl font-bold text-gray-900 mb-2">{product.title}</h2>
+
+          {/* Type and Vendor */}
+          <div className="flex items-center gap-2 text-sm text-gray-500 mb-3">
+            {product.productType && (
+              <span className="px-2 py-0.5 bg-gray-100 rounded-md">{product.productType}</span>
+            )}
+            {product.vendor && (
+              <>
+                <span>•</span>
+                <span>{product.vendor}</span>
+              </>
+            )}
+          </div>
+
+          {/* Price */}
+          <div className="text-2xl font-bold text-violet-600 mb-4">
+            {formatPrice(product.priceMin, product.priceMax, currency)}
+          </div>
+
+          {/* Description */}
+          {cleanDescription && (
+            <div className="mb-4">
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Description</h4>
+              <p className="text-sm text-gray-600 leading-relaxed">{cleanDescription}</p>
+            </div>
+          )}
+
+          {/* Tags */}
+          {tags.length > 0 && (
+            <div className="mb-6">
+              <h4 className="text-sm font-semibold text-gray-700 mb-2">Tags</h4>
+              <div className="flex flex-wrap gap-2">
+                {tags.map((tag, i) => (
+                  <span
+                    key={i}
+                    className="px-3 py-1 bg-violet-50 text-violet-700 rounded-full text-xs font-medium"
+                  >
+                    {tag}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Inventory */}
+          {product.inventory !== undefined && (
+            <div className="text-sm text-gray-500 mb-6">
+              <span className="font-medium">{product.inventory}</span> in stock
+            </div>
+          )}
+
+          {/* Generate Ad Button */}
+          <button className="w-full py-3 bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg shadow-violet-500/25">
+            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+            </svg>
+            Generate Ad
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function ProductsPage() {
   const [searchParams] = useSearchParams();
   const [data, setData] = useState<ProductsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [syncing, setSyncing] = useState(false);
   const [showConnectModal, setShowConnectModal] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [shopInput, setShopInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
@@ -347,7 +494,8 @@ export default function ProductsPage() {
               {data.products.map((product) => (
                 <div
                   key={product.id}
-                  className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-violet-200 transition-all group"
+                  onClick={() => setSelectedProduct(product)}
+                  className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-violet-200 transition-all group cursor-pointer"
                 >
                   {/* Product Image */}
                   <div className="aspect-square relative bg-gray-100">
@@ -474,6 +622,14 @@ export default function ProductsPage() {
           </div>
         </div>
       )}
+
+      {/* Product Preview Modal */}
+      <ProductModal
+        product={selectedProduct}
+        currency={data?.store?.currency}
+        onClose={() => setSelectedProduct(null)}
+        formatPrice={formatPrice}
+      />
     </div>
   );
 }
