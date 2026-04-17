@@ -84,32 +84,45 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
 
     const shopData = await shopResponse.json() as { shop: any };
 
-    // Save store to database
+    // Save store to database using production schema
     const storeId = crypto.randomUUID();
+    const shopifyShopId = shopData.shop.id?.toString() || storeId;
 
-    await env.DB.prepare(`
-      INSERT INTO stores (id, shop_domain, access_token, scope, store_name, store_email, currency, timezone, plan_name)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-      ON CONFLICT(shop_domain) DO UPDATE SET
-        access_token = excluded.access_token,
-        scope = excluded.scope,
-        store_name = excluded.store_name,
-        store_email = excluded.store_email,
-        currency = excluded.currency,
-        timezone = excluded.timezone,
-        plan_name = excluded.plan_name,
-        updated_at = datetime('now')
-    `).bind(
-      storeId,
-      shopDomain,
-      tokenData.access_token,
-      tokenData.scope || null,
-      shopData.shop.name || null,
-      shopData.shop.email || null,
-      shopData.shop.currency || 'USD',
-      shopData.shop.timezone || null,
-      shopData.shop.plan_name || null
-    ).run();
+    // Check if store already exists
+    const existingStore = await env.DB.prepare(
+      'SELECT id FROM stores WHERE shopify_domain = ?'
+    ).bind(shopDomain).first();
+
+    if (existingStore) {
+      // Update existing store
+      await env.DB.prepare(`
+        UPDATE stores SET
+          shopify_access_token = ?,
+          shop_name = ?,
+          shop_email = ?,
+          is_active = 1,
+          updated_at = datetime('now')
+        WHERE shopify_domain = ?
+      `).bind(
+        tokenData.access_token,
+        shopData.shop.name || null,
+        shopData.shop.email || null,
+        shopDomain
+      ).run();
+    } else {
+      // Insert new store
+      await env.DB.prepare(`
+        INSERT INTO stores (id, shopify_domain, shopify_access_token, shopify_shop_id, shop_name, shop_email, is_active, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?, 1, datetime('now'), datetime('now'))
+      `).bind(
+        storeId,
+        shopDomain,
+        tokenData.access_token,
+        shopifyShopId,
+        shopData.shop.name || null,
+        shopData.shop.email || null
+      ).run();
+    }
 
     // Clear the state cookie and redirect to products
     const headers = new Headers();
