@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { useSearchParams, useNavigate } from "react-router";
 
 interface BrandStyleProfile {
   colors: { hex: string; label: string }[];
@@ -20,11 +21,18 @@ interface Store {
 }
 
 export default function SettingsPage() {
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
+
   // Store connection state - multi-store support
   const [stores, setStores] = useState<Store[]>([]);
   const [currentStore, setCurrentStore] = useState<Store | null>(null);
   const [storeLoading, setStoreLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
+
+  // Connect Shopify modal state
+  const [showConnectModal, setShowConnectModal] = useState(false);
+  const [shopInput, setShopInput] = useState("");
 
   // Brand style state
   const [brandImages, setBrandImages] = useState<string[]>([]);
@@ -41,6 +49,32 @@ export default function SettingsPage() {
     fetchStoreConnection();
     fetchBrandStyle();
   }, []);
+
+  // Check for ?connect=true param and auto-open modal
+  useEffect(() => {
+    if (searchParams.get("connect") === "true") {
+      setShowConnectModal(true);
+      // Clear the param from URL without reload
+      setSearchParams({}, { replace: true });
+    }
+  }, [searchParams, setSearchParams]);
+
+  // Connect to Shopify OAuth
+  const handleConnect = () => {
+    if (!shopInput.trim()) return;
+
+    // Clean up the shop input
+    let shop = shopInput.trim();
+    shop = shop.replace("https://", "").replace("http://", "");
+    shop = shop.replace("/admin", "").replace("/", "");
+
+    if (!shop.includes(".myshopify.com")) {
+      shop = `${shop}.myshopify.com`;
+    }
+
+    // Redirect to OAuth
+    window.location.href = `/auth/shopify?shop=${encodeURIComponent(shop)}`;
+  };
 
   const fetchStoreConnection = async () => {
     try {
@@ -450,15 +484,15 @@ export default function SettingsPage() {
         <div className="bg-white rounded-2xl border border-gray-100 p-6">
           <div className="flex items-center justify-between mb-4">
             <h3 className="font-semibold text-gray-900">Connected Stores</h3>
-            <a
-              href="/products?connect=true"
+            <button
+              onClick={() => setShowConnectModal(true)}
               className="text-sm text-violet-600 hover:text-violet-700 font-medium flex items-center gap-1"
             >
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
               </svg>
               Add Store
-            </a>
+            </button>
           </div>
 
           {storeLoading ? (
@@ -480,15 +514,15 @@ export default function SettingsPage() {
               </div>
               <p className="text-gray-600 font-medium mb-1">No stores connected</p>
               <p className="text-sm text-gray-500 mb-4">Connect your Shopify store to start generating ads</p>
-              <a
-                href="/products?connect=true"
+              <button
+                onClick={() => setShowConnectModal(true)}
                 className="inline-flex items-center gap-2 px-4 py-2 bg-emerald-600 text-white rounded-lg font-medium hover:bg-emerald-700 transition"
               >
                 <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
                   <path d="M21.958 4.285A2.78 2.78 0 0019.78 2h-1.157a2.78 2.78 0 00-2.592 1.78L14.06 9.572H9.94L7.969 3.78A2.78 2.78 0 005.377 2H4.22a2.78 2.78 0 00-2.178 2.285L.084 12.58a1 1 0 00.985 1.158h4.156l-.98 7.203a1 1 0 00.988 1.139h3.534a1 1 0 00.988-.861l1.245-9.148h2l1.245 9.148a1 1 0 00.988.861h3.534a1 1 0 00.988-1.139l-.98-7.203h4.156a1 1 0 00.985-1.158l-1.958-8.295z"/>
                 </svg>
                 Connect Shopify Store
-              </a>
+              </button>
             </div>
           ) : (
             <div className="space-y-3">
@@ -610,6 +644,74 @@ export default function SettingsPage() {
           </button>
         </div>
       </div>
+
+      {/* Connect Shopify Modal */}
+      {showConnectModal && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4"
+          style={{ backgroundColor: "rgba(0,0,0,0.5)" }}
+          onClick={() => setShowConnectModal(false)}
+        >
+          <div
+            className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-xl font-bold text-gray-900">Connect a Shopify store</h2>
+              <button
+                onClick={() => setShowConnectModal(false)}
+                className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center hover:bg-gray-200 transition"
+              >
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <p className="text-gray-500 mb-6">
+              Enter your Shopify store domain to connect and start generating ads.
+            </p>
+
+            <div className="mb-6">
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Enter your store domain
+              </label>
+              <input
+                type="text"
+                value={shopInput}
+                onChange={(e) => setShopInput(e.target.value)}
+                placeholder="yourstore.myshopify.com"
+                className="w-full px-4 py-3 border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent"
+                onKeyDown={(e) => e.key === "Enter" && handleConnect()}
+                autoFocus
+              />
+            </div>
+
+            <div className="flex gap-3">
+              <button
+                onClick={() => setShowConnectModal(false)}
+                className="flex-1 py-3 bg-gray-100 text-gray-700 rounded-xl font-semibold hover:bg-gray-200 transition"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleConnect}
+                disabled={!shopInput.trim()}
+                className="flex-1 py-3 bg-gradient-to-r from-emerald-500 to-green-600 text-white rounded-xl font-semibold hover:from-emerald-600 hover:to-green-700 transition disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+              >
+                <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                  <path d="M21.958 4.285A2.78 2.78 0 0019.78 2h-1.157a2.78 2.78 0 00-2.592 1.78L14.06 9.572H9.94L7.969 3.78A2.78 2.78 0 005.377 2H4.22a2.78 2.78 0 00-2.178 2.285L.084 12.58a1 1 0 00.985 1.158h4.156l-.98 7.203a1 1 0 00.988 1.139h3.534a1 1 0 00.988-.861l1.245-9.148h2l1.245 9.148a1 1 0 00.988.861h3.534a1 1 0 00.988-1.139l-.98-7.203h4.156a1 1 0 00.985-1.158l-1.958-8.295z"/>
+                </svg>
+                Connect
+              </button>
+            </div>
+
+            <p className="text-xs text-gray-400 text-center mt-4">
+              You'll be redirected to Shopify to authorize JAIM
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
