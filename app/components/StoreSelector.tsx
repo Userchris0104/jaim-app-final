@@ -85,7 +85,7 @@ export default function StoreSelector({ isCollapsed }: { isCollapsed: boolean })
 
   function handleAddStore() {
     setIsOpen(false);
-    navigate("/products");
+    navigate("/products?connect=true");
   }
 
   // Get store initials for avatar

@@ -319,6 +319,12 @@ export default function ProductsPage() {
   useEffect(() => {
     const connected = searchParams.get("connected");
     const errorParam = searchParams.get("error");
+    const connectParam = searchParams.get("connect");
+
+    // Auto-open connect modal when ?connect=true
+    if (connectParam === "true") {
+      setShowConnectModal(true);
+    }
 
     if (connected === "true") {
       setSuccessMessage("Store connected successfully! Syncing products...");
