@@ -1168,38 +1168,91 @@ export default function AnalyticsPage() {
           {/* Bar Chart */}
           {(() => {
             // MOCK: Replace with real analytics API data when available
-            const revenueData = [
-              { day: "Mon", value: 935 },
-              { day: "Tue", value: 853 },
-              { day: "Wed", value: 1199 },
-              { day: "Thu", value: 579 },
-              { day: "Fri", value: 1138 },
-              { day: "Sat", value: 967 },
-              { day: "Sun", value: 1133 },
-            ];
-            const maxValue = Math.max(...revenueData.map(d => d.value));
+            const metricData: Record<string, { day: string; value: number }[]> = {
+              revenue: [
+                { day: "Mon", value: 935 },
+                { day: "Tue", value: 853 },
+                { day: "Wed", value: 1199 },
+                { day: "Thu", value: 579 },
+                { day: "Fri", value: 1138 },
+                { day: "Sat", value: 967 },
+                { day: "Sun", value: 1133 },
+              ],
+              clicks: [
+                { day: "Mon", value: 342 },
+                { day: "Tue", value: 289 },
+                { day: "Wed", value: 456 },
+                { day: "Thu", value: 198 },
+                { day: "Fri", value: 412 },
+                { day: "Sat", value: 378 },
+                { day: "Sun", value: 401 },
+              ],
+              sales: [
+                { day: "Mon", value: 28 },
+                { day: "Tue", value: 24 },
+                { day: "Wed", value: 38 },
+                { day: "Thu", value: 15 },
+                { day: "Fri", value: 35 },
+                { day: "Sat", value: 31 },
+                { day: "Sun", value: 33 },
+              ],
+              roas: [
+                { day: "Mon", value: 4.2 },
+                { day: "Tue", value: 3.8 },
+                { day: "Wed", value: 5.4 },
+                { day: "Thu", value: 2.9 },
+                { day: "Fri", value: 5.1 },
+                { day: "Sat", value: 4.6 },
+                { day: "Sun", value: 4.9 },
+              ],
+            };
+
+            const currentData = metricData[activeMetric] || metricData.revenue;
+            const maxValue = Math.max(...currentData.map(d => d.value));
+
+            const formatValue = (value: number) => {
+              if (activeMetric === "revenue") return `$${value.toLocaleString()}`;
+              if (activeMetric === "sales") return value.toString();
+              if (activeMetric === "clicks") return value.toLocaleString();
+              if (activeMetric === "roas") return `${value.toFixed(1)}x`;
+              return value.toString();
+            };
 
             return (
-              <div className="flex-1 min-h-[200px] flex items-end justify-between gap-3 mb-4">
-                {revenueData.map((d, i) => {
-                  const height = (d.value / maxValue) * 100;
-                  return (
-                    <div key={i} className="flex-1 flex flex-col items-center">
-                      <span className="text-[11px] text-gray-400 mb-1">
-                        ${d.value.toLocaleString()}
-                      </span>
+              <div className="flex-1 min-h-[200px] flex flex-col mb-4">
+                {/* Value labels row */}
+                <div className="flex justify-between gap-3 mb-1">
+                  {currentData.map((d, i) => (
+                    <div key={i} className="flex-1 text-center">
+                      <span className="text-[11px] text-gray-400">{formatValue(d.value)}</span>
+                    </div>
+                  ))}
+                </div>
+                {/* Bars container - fixed height for percentage to work */}
+                <div className="flex-1 flex items-end justify-between gap-3">
+                  {currentData.map((d, i) => {
+                    const heightPercent = (d.value / maxValue) * 100;
+                    return (
                       <div
-                        className="w-full"
+                        key={i}
+                        className="flex-1"
                         style={{
-                          height: `${height}%`,
+                          height: `${heightPercent}%`,
                           backgroundColor: "rgba(124, 58, 237, 0.85)",
                           borderRadius: "6px 6px 0 0",
                         }}
                       />
-                      <span className="text-[11px] text-gray-400 mt-2">{d.day}</span>
+                    );
+                  })}
+                </div>
+                {/* Day labels row */}
+                <div className="flex justify-between gap-3 mt-2">
+                  {currentData.map((d, i) => (
+                    <div key={i} className="flex-1 text-center">
+                      <span className="text-[11px] text-gray-400">{d.day}</span>
                     </div>
-                  );
-                })}
+                  ))}
+                </div>
               </div>
             );
           })()}
