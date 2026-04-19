@@ -1,5 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate } from "react-router";
+import { useNavigate, useSearchParams } from "react-router";
 
 interface Campaign {
   id: string;
@@ -430,9 +430,20 @@ export default function AdsPage() {
   const [error, setError] = useState<string | null>(null);
   const [previewAd, setPreviewAd] = useState<Ad | null>(null);
 
+  // URL params
+  const [searchParams] = useSearchParams();
+
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
+
+  // Read status filter from URL on mount
+  useEffect(() => {
+    const status = searchParams.get("status");
+    if (status && ["ready", "processing", "published", "archived"].includes(status)) {
+      setActiveTab(status);
+    }
+  }, [searchParams]);
   const [showFilters, setShowFilters] = useState(false);
   const [selectedCampaign, setSelectedCampaign] = useState("all");
   const [selectedPlatform, setSelectedPlatform] = useState("all");

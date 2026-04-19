@@ -508,7 +508,7 @@ export default function DashboardPage() {
 
             {/* Active Ads Card */}
             <div
-              onClick={() => navigate("/ads")}
+              onClick={() => navigate("/ads?status=published")}
               className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-lg transition-all cursor-pointer">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
