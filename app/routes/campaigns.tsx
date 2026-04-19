@@ -669,7 +669,7 @@ function CampaignRow({
         </div>
 
         {/* Stats - fixed width columns for alignment */}
-        <div className="hidden lg:grid grid-cols-5 flex-shrink-0" style={{ width: '400px' }}>
+        <div className="hidden lg:grid grid-cols-5 gap-8 flex-shrink-0" style={{ width: '500px' }}>
           <div className="text-center">
             <p className="text-xs text-gray-500 mb-0.5">Spend</p>
             <p className="text-sm font-semibold text-gray-900">${campaign.spend.toLocaleString()}</p>
