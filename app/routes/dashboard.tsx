@@ -1,15 +1,36 @@
 import { useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 
-// Demo data
-const revenueData = [
-  { date: "Jan 7", revenue: 1800, spend: 350 },
-  { date: "Jan 10", revenue: 2200, spend: 400 },
-  { date: "Jan 13", revenue: 2600, spend: 480 },
-  { date: "Jan 16", revenue: 2400, spend: 440 },
-  { date: "Jan 19", revenue: 3200, spend: 520 },
-  { date: "Jan 20", revenue: 3500, spend: 560 },
-];
+// Demo data for different time ranges
+const revenueDataByRange = {
+  "7": [
+    { date: "Apr 13", revenue: 2800, spend: 520 },
+    { date: "Apr 14", revenue: 3100, spend: 580 },
+    { date: "Apr 15", revenue: 2950, spend: 540 },
+    { date: "Apr 16", revenue: 3400, spend: 620 },
+    { date: "Apr 17", revenue: 3200, spend: 590 },
+    { date: "Apr 18", revenue: 3650, spend: 650 },
+    { date: "Apr 19", revenue: 3800, spend: 680 },
+  ],
+  "14": [
+    { date: "Apr 6", revenue: 2100, spend: 400 },
+    { date: "Apr 8", revenue: 2450, spend: 460 },
+    { date: "Apr 10", revenue: 2300, spend: 430 },
+    { date: "Apr 12", revenue: 2800, spend: 520 },
+    { date: "Apr 14", revenue: 3100, spend: 580 },
+    { date: "Apr 16", revenue: 3400, spend: 620 },
+    { date: "Apr 19", revenue: 3800, spend: 680 },
+  ],
+  "30": [
+    { date: "Mar 20", revenue: 1600, spend: 320 },
+    { date: "Mar 25", revenue: 1850, spend: 360 },
+    { date: "Mar 30", revenue: 2100, spend: 400 },
+    { date: "Apr 5", revenue: 2400, spend: 450 },
+    { date: "Apr 10", revenue: 2750, spend: 510 },
+    { date: "Apr 15", revenue: 3200, spend: 590 },
+    { date: "Apr 19", revenue: 3800, spend: 680 },
+  ],
+};
 
 export const topAds = [
   {
@@ -282,7 +303,11 @@ export default function DashboardPage() {
     navigate(`/ads/${adId}`);
   };
 
+  const revenueData = revenueDataByRange[timeRange];
   const maxRevenue = Math.max(...revenueData.map(d => d.revenue));
+  const totalRevenue = revenueData.reduce((sum, d) => sum + d.revenue, 0);
+  const totalSpend = revenueData.reduce((sum, d) => sum + d.spend, 0);
+  const chartRoas = (totalRevenue / totalSpend).toFixed(1);
 
   return (
     <div className="min-h-screen bg-gray-50/50">
@@ -578,15 +603,15 @@ export default function DashboardPage() {
                 <div className="flex items-center gap-8">
                   <div>
                     <div className="text-xs text-gray-500 mb-0.5">Total Revenue</div>
-                    <div className="text-xl font-bold text-gray-900">$35,450</div>
+                    <div className="text-xl font-bold text-gray-900">${totalRevenue.toLocaleString()}</div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-500 mb-0.5">Ad Spend</div>
-                    <div className="text-xl font-bold text-gray-900">$6,510</div>
+                    <div className="text-xl font-bold text-gray-900">${totalSpend.toLocaleString()}</div>
                   </div>
                   <div>
                     <div className="text-xs text-gray-500 mb-0.5">ROAS</div>
-                    <div className="text-xl font-bold text-violet-600">5.4x</div>
+                    <div className="text-xl font-bold text-violet-600">{chartRoas}x</div>
                   </div>
                 </div>
                 {/* Legend */}
