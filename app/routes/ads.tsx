@@ -16,6 +16,13 @@ interface Ad {
   description: string;
   cta: string;
   imageUrl: string | null;
+  // Compositing data for CSS overlay
+  sceneImageUrl: string | null;
+  productImageUrl: string | null;
+  compositingMethod: 'css_overlay' | 'server_composite' | 'fashn_model' | 'bria_product_shot' | 'shopify_only' | 'none';
+  // A/B Testing
+  abVariant: 'A' | 'B' | 'C' | null;
+  abGroup: string | null;
   status: string;
   format: string;
   creativeStrategy: string;
@@ -30,6 +37,13 @@ interface Ad {
   platforms: string[];
   campaign: Campaign;
 }
+
+// Variant style labels
+const VARIANT_LABELS: Record<string, { name: string; color: string }> = {
+  A: { name: 'Clean', color: 'bg-blue-500' },
+  B: { name: 'Lifestyle', color: 'bg-green-500' },
+  C: { name: 'Bold', color: 'bg-orange-500' },
+};
 
 interface AdsData {
   success: boolean;
@@ -169,9 +183,32 @@ function AdCard({
 
   return (
     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-violet-200 transition-all group">
-      {/* Image Area - 4:5 aspect ratio */}
-      <div className="relative aspect-[4/5] bg-gray-100">
-        {ad.imageUrl ? (
+      {/* Image Area - 4:5 aspect ratio with compositing method support */}
+      <div className="relative aspect-[4/5] bg-gray-100 overflow-hidden">
+        {/* CSS Overlay: Scene background + Product overlay */}
+        {ad.compositingMethod === 'css_overlay' && ad.sceneImageUrl && ad.productImageUrl ? (
+          <>
+            <img
+              src={ad.sceneImageUrl}
+              alt="Scene background"
+              className="absolute inset-0 w-full h-full object-cover"
+            />
+            <img
+              src={ad.productImageUrl}
+              alt={ad.title}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[55%] h-auto object-contain"
+              style={{ filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15))' }}
+            />
+          </>
+        ) : /* FASHN or Bria: Single composited image */
+        (ad.compositingMethod === 'fashn_model' || ad.compositingMethod === 'bria_product_shot') && ad.imageUrl ? (
+          <img
+            src={ad.imageUrl}
+            alt={ad.title}
+            className="w-full h-full object-cover"
+          />
+        ) : /* Shopify only or legacy: Direct image */
+        ad.imageUrl ? (
           <img
             src={ad.imageUrl}
             alt={ad.title}
@@ -185,9 +222,14 @@ function AdCard({
           </div>
         )}
 
-        {/* Top left: Format badge */}
-        <div className="absolute top-3 left-3">
+        {/* Top left: Format badge + Variant badge */}
+        <div className="absolute top-3 left-3 flex gap-1.5">
           <FormatBadge format={ad.format} />
+          {ad.abVariant && VARIANT_LABELS[ad.abVariant] && (
+            <div className={`px-2 py-1 ${VARIANT_LABELS[ad.abVariant].color} backdrop-blur-sm rounded-lg text-xs font-bold text-white`}>
+              {ad.abVariant}
+            </div>
+          )}
         </div>
 
         {/* Top right: Platform icons */}
@@ -303,9 +345,26 @@ function AdPreviewModal({
         className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex"
         onClick={(e) => e.stopPropagation()}
       >
-        {/* Left: Ad Creative */}
-        <div className="w-1/2 bg-gray-100 relative">
-          {ad.imageUrl ? (
+        {/* Left: Ad Creative with CSS overlay compositing */}
+        <div className="w-1/2 bg-gray-100 relative overflow-hidden">
+          {/* CSS Overlay Compositing: Scene background + Product overlay */}
+          {ad.compositingMethod === 'css_overlay' && ad.sceneImageUrl && ad.productImageUrl ? (
+            <>
+              {/* Scene background */}
+              <img
+                src={ad.sceneImageUrl}
+                alt="Scene background"
+                className="absolute inset-0 w-full h-full object-cover"
+              />
+              {/* Product overlay - centered with drop shadow */}
+              <img
+                src={ad.productImageUrl}
+                alt={ad.title}
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[55%] h-auto object-contain"
+                style={{ filter: 'drop-shadow(0 8px 24px rgba(0, 0, 0, 0.2))' }}
+              />
+            </>
+          ) : ad.imageUrl ? (
             <img
               src={ad.imageUrl}
               alt={ad.title}

@@ -107,6 +107,13 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         description: ad.description || ad.ad_description,
         cta: ad.call_to_action || ad.ad_cta_button,
         imageUrl: imageUrl,
+        // Compositing data for CSS overlay
+        sceneImageUrl: ad.scene_image_url,
+        productImageUrl: ad.product_image_url,
+        compositingMethod: ad.compositing_method || 'none',
+        // A/B Testing
+        abVariant: ad.ab_variant || null,
+        abGroup: ad.ab_group || null,
         status: displayStatus,
         format: format,
         creativeStrategy: ad.creative_strategy,

@@ -11,6 +11,7 @@
 
 export interface FalImageRequest {
   prompt: string;
+  negativePrompt?: string;
   imageSize?: 'square' | 'portrait_4_3' | 'portrait_16_9' | 'landscape_4_3' | 'landscape_16_9';
   numImages?: number;
   enableSafetyChecker?: boolean;
@@ -60,25 +61,33 @@ export class FalClient {
    */
   async generateImage(params: {
     prompt: string;
+    negativePrompt?: string;
     format?: 'square' | 'portrait' | 'landscape' | 'story';
     seed?: number;
   }): Promise<FalGenerateResult> {
     const imageSize = FORMAT_TO_SIZE[params.format || 'square'] || 'square';
 
     try {
+      const requestBody: Record<string, any> = {
+        prompt: params.prompt,
+        image_size: imageSize,
+        num_images: 1,
+        enable_safety_checker: true,
+        seed: params.seed,
+      };
+
+      // Add negative prompt if provided - critical for preventing product hallucination
+      if (params.negativePrompt) {
+        requestBody.negative_prompt = params.negativePrompt;
+      }
+
       const response = await fetch(`${this.baseUrl}/fal-ai/flux/dev`, {
         method: 'POST',
         headers: {
           'Authorization': `Key ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          prompt: params.prompt,
-          image_size: imageSize,
-          num_images: 1,
-          enable_safety_checker: true,
-          seed: params.seed,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -119,25 +128,32 @@ export class FalClient {
    */
   async generateImagePro(params: {
     prompt: string;
+    negativePrompt?: string;
     format?: 'square' | 'portrait' | 'landscape' | 'story';
     seed?: number;
   }): Promise<FalGenerateResult> {
     const imageSize = FORMAT_TO_SIZE[params.format || 'square'] || 'square';
 
     try {
+      const requestBody: Record<string, any> = {
+        prompt: params.prompt,
+        image_size: imageSize,
+        num_images: 1,
+        enable_safety_checker: true,
+        seed: params.seed,
+      };
+
+      if (params.negativePrompt) {
+        requestBody.negative_prompt = params.negativePrompt;
+      }
+
       const response = await fetch(`${this.baseUrl}/fal-ai/flux-pro`, {
         method: 'POST',
         headers: {
           'Authorization': `Key ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          prompt: params.prompt,
-          image_size: imageSize,
-          num_images: 1,
-          enable_safety_checker: true,
-          seed: params.seed,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -178,25 +194,32 @@ export class FalClient {
    */
   async generateImageFast(params: {
     prompt: string;
+    negativePrompt?: string;
     format?: 'square' | 'portrait' | 'landscape' | 'story';
     seed?: number;
   }): Promise<FalGenerateResult> {
     const imageSize = FORMAT_TO_SIZE[params.format || 'square'] || 'square';
 
     try {
+      const requestBody: Record<string, any> = {
+        prompt: params.prompt,
+        image_size: imageSize,
+        num_images: 1,
+        enable_safety_checker: true,
+        seed: params.seed,
+      };
+
+      if (params.negativePrompt) {
+        requestBody.negative_prompt = params.negativePrompt;
+      }
+
       const response = await fetch(`${this.baseUrl}/fal-ai/flux/schnell`, {
         method: 'POST',
         headers: {
           'Authorization': `Key ${this.apiKey}`,
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({
-          prompt: params.prompt,
-          image_size: imageSize,
-          num_images: 1,
-          enable_safety_checker: true,
-          seed: params.seed,
-        }),
+        body: JSON.stringify(requestBody),
       });
 
       if (!response.ok) {
@@ -233,10 +256,12 @@ export class FalClient {
 }
 
 /**
- * Generate an ad image with fal.ai, falling back to Gemini if needed.
+ * Generate a scene image with fal.ai, falling back to Gemini if needed.
+ * The negative prompt is critical for preventing product hallucination.
  */
 export async function generateAdImage(params: {
   prompt: string;
+  negativePrompt?: string;
   format: 'square' | 'portrait' | 'landscape' | 'story';
   falApiKey?: string;
   geminiApiKey?: string;
@@ -247,11 +272,15 @@ export async function generateAdImage(params: {
     const fal = new FalClient(params.falApiKey);
     const result = await fal.generateImage({
       prompt: params.prompt,
+      negativePrompt: params.negativePrompt,
       format: params.format,
     });
 
     if (result.success && result.imageUrl) {
       console.log('[IMAGE_GEN] Provider: fal.ai FLUX Dev');
+      if (params.negativePrompt) {
+        console.log('[IMAGE_GEN] Using negative prompt to prevent product hallucination');
+      }
       return result.imageUrl;
     }
 

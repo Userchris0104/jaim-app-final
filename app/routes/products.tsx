@@ -34,15 +34,33 @@ interface ProductsData {
   total: number;
 }
 
-interface GeneratedAd {
+interface GeneratedAdVariant {
   id: string;
+  variant: 'A' | 'B' | 'C';
   headline: string;
   primaryText: string;
   description: string;
-  cta: string;
+  callToAction: string;
   imageUrl: string | null;
-  strategy: string;
+  sceneImageUrl: string | null;
+  productImageUrl: string | null;
+  compositingMethod: 'fashn_model' | 'bria_product_shot' | 'css_overlay' | 'shopify_only';
+  abGroup: string;
 }
+
+interface GeneratedAdsResponse {
+  success: boolean;
+  message: string;
+  abGroup: string;
+  variants: GeneratedAdVariant[];
+}
+
+// Variant style labels
+const VARIANT_LABELS: Record<string, { name: string; description: string }> = {
+  A: { name: 'Clean & Minimal', description: 'Benefits focused' },
+  B: { name: 'Lifestyle', description: 'Emotion focused' },
+  C: { name: 'Bold Editorial', description: 'Pattern interrupt' },
+};
 
 // Product Preview Modal
 function ProductModal({
@@ -56,11 +74,12 @@ function ProductModal({
   currency?: string;
   onClose: () => void;
   formatPrice: (min?: number, max?: number, currency?: string) => string;
-  onAdGenerated?: (ad: GeneratedAd) => void;
+  onAdGenerated?: (variants: GeneratedAdVariant[]) => void;
 }) {
   const [generating, setGenerating] = useState(false);
-  const [generatedAd, setGeneratedAd] = useState<GeneratedAd | null>(null);
+  const [generatedVariants, setGeneratedVariants] = useState<GeneratedAdVariant[]>([]);
   const [genError, setGenError] = useState<string | null>(null);
+  const [selectedVariant, setSelectedVariant] = useState<string | null>(null);
 
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -78,8 +97,9 @@ function ProductModal({
 
   // Reset state when product changes
   useEffect(() => {
-    setGeneratedAd(null);
+    setGeneratedVariants([]);
     setGenError(null);
+    setSelectedVariant(null);
   }, [product?.id]);
 
   const handleGenerateAd = async () => {
@@ -95,16 +115,17 @@ function ProductModal({
         body: JSON.stringify({ productId: product.id }),
       });
 
-      const result = await response.json();
+      const result = await response.json() as GeneratedAdsResponse;
 
       if (!response.ok || !result.success) {
-        throw new Error(result.error || 'Failed to generate ad');
+        throw new Error((result as any).error || 'Failed to generate ads');
       }
 
-      setGeneratedAd(result.ad);
-      onAdGenerated?.(result.ad);
+      setGeneratedVariants(result.variants);
+      setSelectedVariant(result.variants[0]?.variant || null);
+      onAdGenerated?.(result.variants);
     } catch (err: any) {
-      setGenError(err.message || 'Failed to generate ad');
+      setGenError(err.message || 'Failed to generate ads');
     } finally {
       setGenerating(false);
     }
@@ -224,41 +245,88 @@ function ProductModal({
             </div>
           )}
 
-          {/* Generated Ad Preview */}
-          {generatedAd && (
+          {/* Generated Variants Preview */}
+          {generatedVariants.length > 0 && (
             <div className="mb-4 p-4 bg-emerald-50 border border-emerald-200 rounded-xl">
               <div className="flex items-center gap-2 mb-3">
                 <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
-                <span className="font-semibold text-emerald-700">Ad Generated!</span>
-              </div>
-              {generatedAd.imageUrl && (
-                <img
-                  src={generatedAd.imageUrl}
-                  alt="Generated Ad"
-                  className="w-full aspect-square object-cover rounded-lg mb-3"
-                />
-              )}
-              <div className="space-y-2">
-                <p className="font-bold text-gray-900">{generatedAd.headline}</p>
-                <p className="text-sm text-gray-600">{generatedAd.primaryText}</p>
-                {generatedAd.description && (
-                  <p className="text-xs text-gray-500">{generatedAd.description}</p>
-                )}
-                <span className="inline-block px-3 py-1 bg-violet-600 text-white text-xs font-semibold rounded-lg">
-                  {generatedAd.cta}
+                <span className="font-semibold text-emerald-700">
+                  {generatedVariants.length} Ad Variants Created!
                 </span>
               </div>
-              <div className="mt-3 pt-3 border-t border-emerald-200 flex items-center justify-between">
-                <span className="text-xs text-gray-500">Strategy: {generatedAd.strategy}</span>
-                <a
-                  href="/ads"
-                  className="text-sm text-violet-600 hover:text-violet-700 font-medium"
-                >
-                  View in Ads
-                </a>
+
+              {/* Variant Tabs */}
+              <div className="flex gap-2 mb-3">
+                {generatedVariants.map((v) => (
+                  <button
+                    key={v.variant}
+                    onClick={() => setSelectedVariant(v.variant)}
+                    className={`flex-1 py-2 px-3 rounded-lg text-sm font-medium transition-all ${
+                      selectedVariant === v.variant
+                        ? 'bg-violet-600 text-white'
+                        : 'bg-white text-gray-700 hover:bg-gray-50'
+                    }`}
+                  >
+                    <div>Variant {v.variant}</div>
+                    <div className={`text-xs ${selectedVariant === v.variant ? 'text-violet-200' : 'text-gray-500'}`}>
+                      {VARIANT_LABELS[v.variant]?.name}
+                    </div>
+                  </button>
+                ))}
               </div>
+
+              {/* Selected Variant Preview */}
+              {generatedVariants.filter(v => v.variant === selectedVariant).map((ad) => (
+                <div key={ad.id}>
+                  {/* Image with CSS overlay support */}
+                  {ad.compositingMethod === 'css_overlay' && ad.sceneImageUrl && ad.productImageUrl ? (
+                    <div className="relative w-full aspect-square rounded-lg overflow-hidden mb-3">
+                      <img
+                        src={ad.sceneImageUrl}
+                        alt="Scene background"
+                        className="absolute inset-0 w-full h-full object-cover"
+                      />
+                      <img
+                        src={ad.productImageUrl}
+                        alt={ad.headline}
+                        className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[55%] h-auto object-contain"
+                        style={{ filter: 'drop-shadow(0 8px 24px rgba(0,0,0,0.2))' }}
+                      />
+                    </div>
+                  ) : ad.imageUrl ? (
+                    <img
+                      src={ad.imageUrl}
+                      alt="Generated Ad"
+                      className="w-full aspect-square object-cover rounded-lg mb-3"
+                    />
+                  ) : null}
+
+                  <div className="space-y-2">
+                    <p className="font-bold text-gray-900">{ad.headline}</p>
+                    <p className="text-sm text-gray-600">{ad.primaryText}</p>
+                    {ad.description && (
+                      <p className="text-xs text-gray-500">{ad.description}</p>
+                    )}
+                    <span className="inline-block px-3 py-1 bg-violet-600 text-white text-xs font-semibold rounded-lg">
+                      {ad.callToAction}
+                    </span>
+                  </div>
+
+                  <div className="mt-3 pt-3 border-t border-emerald-200 flex items-center justify-between">
+                    <span className="text-xs text-gray-500">
+                      {VARIANT_LABELS[ad.variant]?.description} • {ad.compositingMethod.replace('_', ' ')}
+                    </span>
+                    <a
+                      href="/ads"
+                      className="text-sm text-violet-600 hover:text-violet-700 font-medium"
+                    >
+                      View All in Ads
+                    </a>
+                  </div>
+                </div>
+              ))}
             </div>
           )}
 
@@ -269,7 +337,7 @@ function ProductModal({
             className={`w-full py-3 text-white font-semibold rounded-xl transition-all flex items-center justify-center gap-2 shadow-lg ${
               generating
                 ? "bg-gray-400 cursor-not-allowed"
-                : generatedAd
+                : generatedVariants.length > 0
                 ? "bg-gradient-to-r from-emerald-500 to-green-600 hover:from-emerald-600 hover:to-green-700 shadow-emerald-500/25"
                 : "bg-gradient-to-r from-violet-600 to-purple-600 hover:from-violet-700 hover:to-purple-700 shadow-violet-500/25"
             }`}
@@ -280,21 +348,21 @@ function ProductModal({
                   <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
                   <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
                 </svg>
-                Generating Ad...
+                Generating 3 Variants...
               </>
-            ) : generatedAd ? (
+            ) : generatedVariants.length > 0 ? (
               <>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
                 </svg>
-                Generate Another
+                Generate New Variants
               </>
             ) : (
               <>
                 <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
-                Generate Ad
+                Generate 3 Ad Variants
               </>
             )}
           </button>
