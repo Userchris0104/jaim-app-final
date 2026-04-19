@@ -25,18 +25,27 @@ interface FilteredData {
     roas: number;
     percentage: number;
   }[];
-  topAds: {
-    id: string;
-    title: string;
-    category: string;
-    campaign: string;
-    imageUrl: string;
-    platforms: string[];
-    status: string;
-    roas: number;
-    revenue: number;
-    ctr: number;
-  }[];
+  topAds: TopAd[];
+}
+
+interface TopAd {
+  id: string;
+  title: string;
+  category: string;
+  campaign: string;
+  imageUrl: string;
+  platforms: string[];
+  status: string;
+  roas: number;
+  revenue: number;
+  ctr: number;
+  clicks: number;
+  // MOCK: Replace with real ad detail API call GET /api/ads/:adId when available
+  headline: string;
+  description: string;
+  cta: string;
+  dailyBudget: string;
+  revenueHistory: number[];
 }
 
 // MOCK: Replace with real analytics API data when available
@@ -198,9 +207,27 @@ function getMockDataForFilters(
   ];
   const campaigns = ["Summer Sale 2024", "New Arrivals", "Brand Awareness"];
   const categories = activeCategory || "Apparel";
+  const headlines = [
+    "Stay warm, stay stylish this season",
+    "Discover your new favorite look",
+    "Premium quality. Unbeatable value.",
+  ];
+  const descriptions = [
+    "Premium quality. Perfect for any occasion.",
+    "Shop the latest trends before they sell out.",
+    "Crafted with care. Built to last.",
+  ];
+  const ctas = ["Shop now", "Learn more", "Get yours"];
+  const budgets = ["$85 / day", "$120 / day", "$65 / day"];
 
-  const topAds = adTitles.map((title, i) => {
+  const topAds: TopAd[] = adTitles.map((title, i) => {
     const adRoas = 4 + random() * 3;
+    const adRevenue = Math.floor(800 + random() * 2000);
+    const adCtr = Math.round((2 + random() * 4) * 100) / 100;
+    // Generate 7 days of revenue history for sparkline
+    const revenueHistory = Array.from({ length: 7 }, () =>
+      Math.floor((adRevenue / 7) * (0.5 + random() * 1))
+    );
     return {
       id: `ad_${seed}_${i}`,
       title: activeProduct
@@ -213,8 +240,15 @@ function getMockDataForFilters(
                  i === 1 ? ["tiktok", "instagram"] : ["facebook"],
       status: "live",
       roas: Math.round(adRoas * 10) / 10,
-      revenue: Math.floor(800 + random() * 2000),
-      ctr: Math.round((2 + random() * 4) * 100) / 100,
+      revenue: adRevenue,
+      ctr: adCtr,
+      clicks: Math.floor(adRevenue * (0.8 + random() * 0.4)),
+      // MOCK: Replace with real ad detail API call GET /api/ads/:adId when available
+      headline: headlines[i],
+      description: descriptions[i],
+      cta: ctas[i],
+      dailyBudget: budgets[i],
+      revenueHistory,
     };
   });
 
@@ -236,6 +270,386 @@ function getMockDataForFilters(
   };
 }
 
+// Ad Report Slide-over Panel
+function AdReportPanel({
+  ad,
+  isOpen,
+  onClose,
+  rank,
+}: {
+  ad: TopAd | null;
+  isOpen: boolean;
+  onClose: () => void;
+  rank: number;
+}) {
+  const [isClosing, setIsClosing] = useState(false);
+
+  // Handle close with animation
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      onClose();
+    }, 150);
+  };
+
+  // Handle escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        handleClose();
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [isOpen]);
+
+  // Prevent body scroll when panel is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
+
+  if (!isOpen || !ad) return null;
+
+  const maxRevenue = Math.max(...ad.revenueHistory);
+  const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+
+  // Generate sparkline path
+  const sparklinePath = () => {
+    const width = 100;
+    const height = 60;
+    const padding = 4;
+    const points = ad.revenueHistory.map((val, i) => {
+      const x = padding + (i / (ad.revenueHistory.length - 1)) * (width - padding * 2);
+      const y = height - padding - ((val / maxRevenue) * (height - padding * 2));
+      return { x, y };
+    });
+
+    // Create smooth bezier curve
+    let path = `M ${points[0].x} ${points[0].y}`;
+    for (let i = 1; i < points.length; i++) {
+      const prev = points[i - 1];
+      const curr = points[i];
+      const cpx = (prev.x + curr.x) / 2;
+      path += ` C ${cpx} ${prev.y}, ${cpx} ${curr.y}, ${curr.x} ${curr.y}`;
+    }
+    return path;
+  };
+
+  // Create fill path for gradient
+  const fillPath = () => {
+    const width = 100;
+    const height = 60;
+    const basePath = sparklinePath();
+    return `${basePath} L 96 60 L 4 60 Z`;
+  };
+
+  // Platform icon component
+  const PlatformIcon = ({ platform, size = 20 }: { platform: string; size?: number }) => {
+    if (platform === "tiktok") {
+      return (
+        <div
+          className="rounded flex items-center justify-center text-white"
+          style={{ width: size, height: size, backgroundColor: "#000000" }}
+        >
+          <svg width={size * 0.6} height={size * 0.6} viewBox="0 0 24 24" fill="currentColor">
+            <path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/>
+          </svg>
+        </div>
+      );
+    }
+    if (platform === "instagram") {
+      return (
+        <div
+          className="rounded flex items-center justify-center text-white"
+          style={{
+            width: size,
+            height: size,
+            background: "linear-gradient(45deg, #f09433 0%,#e6683c 25%,#dc2743 50%,#cc2366 75%,#bc1888 100%)"
+          }}
+        >
+          <svg width={size * 0.6} height={size * 0.6} viewBox="0 0 24 24" fill="currentColor">
+            <path d="M12 2.163c3.204 0 3.584.012 4.85.07 3.252.148 4.771 1.691 4.919 4.919.058 1.265.069 1.645.069 4.849 0 3.205-.012 3.584-.069 4.849-.149 3.225-1.664 4.771-4.919 4.919-1.266.058-1.644.07-4.85.07-3.204 0-3.584-.012-4.849-.07-3.26-.149-4.771-1.699-4.919-4.92-.058-1.265-.07-1.644-.07-4.849 0-3.204.013-3.583.07-4.849.149-3.227 1.664-4.771 4.919-4.919 1.266-.057 1.645-.069 4.849-.069zm0-2.163c-3.259 0-3.667.014-4.947.072-4.358.2-6.78 2.618-6.98 6.98-.059 1.281-.073 1.689-.073 4.948 0 3.259.014 3.668.072 4.948.2 4.358 2.618 6.78 6.98 6.98 1.281.058 1.689.072 4.948.072 3.259 0 3.668-.014 4.948-.072 4.354-.2 6.782-2.618 6.979-6.98.059-1.28.073-1.689.073-4.948 0-3.259-.014-3.667-.072-4.947-.196-4.354-2.617-6.78-6.979-6.98-1.281-.059-1.69-.073-4.949-.073zm0 5.838c-3.403 0-6.162 2.759-6.162 6.162s2.759 6.163 6.162 6.163 6.162-2.759 6.162-6.163c0-3.403-2.759-6.162-6.162-6.162zm0 10.162c-2.209 0-4-1.79-4-4 0-2.209 1.791-4 4-4s4 1.791 4 4c0 2.21-1.791 4-4 4zm6.406-11.845c-.796 0-1.441.645-1.441 1.44s.645 1.44 1.441 1.44c.795 0 1.439-.645 1.439-1.44s-.644-1.44-1.439-1.44z"/>
+          </svg>
+        </div>
+      );
+    }
+    if (platform === "facebook") {
+      return (
+        <div
+          className="rounded flex items-center justify-center text-white"
+          style={{ width: size, height: size, backgroundColor: "#1877F2" }}
+        >
+          <svg width={size * 0.5} height={size * 0.6} viewBox="0 0 24 24" fill="currentColor">
+            <path d="M24 12.073c0-6.627-5.373-12-12-12s-12 5.373-12 12c0 5.99 4.388 10.954 10.125 11.854v-8.385H7.078v-3.47h3.047V9.43c0-3.007 1.792-4.669 4.533-4.669 1.312 0 2.686.235 2.686.235v2.953H15.83c-1.491 0-1.956.925-1.956 1.874v2.25h3.328l-.532 3.47h-2.796v8.385C19.612 23.027 24 18.062 24 12.073z"/>
+          </svg>
+        </div>
+      );
+    }
+    return null;
+  };
+
+  // Toast for share
+  const [showToast, setShowToast] = useState(false);
+  const handleShare = () => {
+    navigator.clipboard.writeText(window.location.href + `/ads/${ad.id}`);
+    setShowToast(true);
+    setTimeout(() => setShowToast(false), 2000);
+  };
+
+  return (
+    <>
+      {/* Overlay */}
+      <div
+        className={`fixed inset-0 z-40 transition-opacity duration-200 ${
+          isClosing ? "opacity-0" : "opacity-100"
+        }`}
+        style={{ backgroundColor: "rgba(0, 0, 0, 0.3)" }}
+        onClick={handleClose}
+      />
+
+      {/* Panel */}
+      <div
+        className={`fixed top-0 right-0 h-full w-[420px] bg-white shadow-2xl z-50 flex flex-col transition-transform duration-200 ease-out ${
+          isClosing ? "translate-x-full" : "translate-x-0"
+        }`}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between p-4 border-b border-gray-100">
+          <div>
+            <h2 className="text-sm font-bold text-gray-900">Ad preview & performance</h2>
+            <p className="text-xs text-gray-500 mt-0.5 truncate max-w-[320px]">{ad.title}</p>
+          </div>
+          <button
+            onClick={handleClose}
+            className="p-1 hover:bg-gray-100 rounded-lg transition"
+          >
+            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-4 space-y-5">
+          {/* SECTION 1 — Ad Creative Preview */}
+          <div>
+            <div className="relative aspect-[4/5] rounded-[10px] overflow-hidden bg-gray-100">
+              <img
+                src={ad.imageUrl}
+                alt={ad.title}
+                className="w-full h-full object-cover"
+                onError={(e) => {
+                  (e.target as HTMLImageElement).src = `https://picsum.photos/seed/${ad.id}/400/500`;
+                }}
+              />
+            </div>
+            <div className="flex items-center gap-2 mt-3">
+              <span className="px-2 py-1 bg-gray-100 text-gray-600 rounded text-xs font-medium">
+                Static image
+              </span>
+              <span className={`px-2 py-1 rounded text-xs font-medium ${
+                ad.status === "live"
+                  ? "bg-emerald-50 text-emerald-700"
+                  : "bg-gray-100 text-gray-600"
+              }`}>
+                {ad.status === "live" ? "Live" : "Draft"}
+              </span>
+              <div className="flex items-center gap-1 ml-auto">
+                {ad.platforms.map((platform) => (
+                  <PlatformIcon key={platform} platform={platform} size={20} />
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 2 — Performance Stats */}
+          <div>
+            <h3 className="text-[13px] font-bold text-gray-900 mb-3">Performance</h3>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="text-[10px] text-gray-500 mb-1">ROAS</div>
+                <div className={`text-base font-bold ${
+                  ad.roas >= 3 ? "text-emerald-600" : ad.roas < 2 ? "text-red-600" : "text-gray-900"
+                }`}>
+                  {ad.roas}x
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <svg className="w-3 h-3 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-[10px] text-emerald-600">+12%</span>
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="text-[10px] text-gray-500 mb-1">Revenue</div>
+                <div className="text-base font-bold text-gray-900">
+                  ${ad.revenue.toLocaleString()}
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <svg className="w-3 h-3 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-[10px] text-emerald-600">+8%</span>
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="text-[10px] text-gray-500 mb-1">Clicks</div>
+                <div className="text-base font-bold text-gray-900">
+                  {ad.clicks.toLocaleString()}
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <svg className="w-3 h-3 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-[10px] text-emerald-600">+15%</span>
+                </div>
+              </div>
+              <div className="bg-gray-50 rounded-lg p-3">
+                <div className="text-[10px] text-gray-500 mb-1">CTR</div>
+                <div className="text-base font-bold text-gray-900">
+                  {ad.ctr}%
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <svg className="w-3 h-3 text-red-500 rotate-180" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-[10px] text-red-600">-3%</span>
+                </div>
+              </div>
+            </div>
+
+            {/* Performance bar */}
+            <div className="mt-3">
+              <div className="h-1 bg-gray-200 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-violet-600 rounded-full"
+                  style={{ width: `${Math.min(ad.roas / 7 * 100, 100)}%` }}
+                />
+              </div>
+              <div className="flex items-center justify-between mt-1">
+                <span className="text-[10px] text-gray-500">Performance score</span>
+                <span className="text-[10px] text-violet-600 font-medium">#{rank} this period</span>
+              </div>
+            </div>
+          </div>
+
+          {/* SECTION 3 — Sparkline Chart */}
+          <div>
+            <h3 className="text-[13px] font-bold text-gray-900 mb-3">Revenue over time</h3>
+            <div className="h-[80px] relative">
+              <svg viewBox="0 0 100 60" className="w-full h-full" preserveAspectRatio="none">
+                <defs>
+                  <linearGradient id="sparklineGradient" x1="0%" y1="0%" x2="0%" y2="100%">
+                    <stop offset="0%" stopColor="#7c3aed" stopOpacity="0.3" />
+                    <stop offset="100%" stopColor="#7c3aed" stopOpacity="0" />
+                  </linearGradient>
+                </defs>
+                <path
+                  d={fillPath()}
+                  fill="url(#sparklineGradient)"
+                />
+                <path
+                  d={sparklinePath()}
+                  fill="none"
+                  stroke="#7c3aed"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  vectorEffect="non-scaling-stroke"
+                />
+              </svg>
+            </div>
+            <div className="flex justify-between mt-1">
+              {dayLabels.map((day) => (
+                <span key={day} className="text-[10px] text-gray-400">{day}</span>
+              ))}
+            </div>
+          </div>
+
+          {/* SECTION 4 — Ad Details */}
+          <div>
+            <h3 className="text-[13px] font-bold text-gray-900 mb-3">Ad details</h3>
+            <div className="grid grid-cols-2 gap-x-4 gap-y-3">
+              <div>
+                <div className="text-[9px] uppercase text-gray-400 tracking-wide">Headline</div>
+                <div className="text-xs text-gray-900 mt-0.5">{ad.headline}</div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase text-gray-400 tracking-wide">Description</div>
+                <div className="text-xs text-gray-900 mt-0.5">{ad.description}</div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase text-gray-400 tracking-wide">CTA</div>
+                <div className="text-xs text-gray-900 mt-0.5">{ad.cta}</div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase text-gray-400 tracking-wide">Platform</div>
+                <div className="text-xs text-gray-900 mt-0.5 capitalize">{ad.platforms.join(", ")}</div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase text-gray-400 tracking-wide">Campaign</div>
+                <div className="text-xs text-gray-900 mt-0.5">{ad.campaign}</div>
+              </div>
+              <div>
+                <div className="text-[9px] uppercase text-gray-400 tracking-wide">Daily budget</div>
+                <div className="text-xs text-gray-900 mt-0.5">{ad.dailyBudget}</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* SECTION 5 — Actions */}
+        <div className="p-4 border-t border-gray-100 space-y-2">
+          <a
+            href={`/ads/${ad.id}`}
+            className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition"
+          >
+            View full ad page →
+          </a>
+          <button
+            onClick={handleShare}
+            className="flex items-center justify-center gap-2 w-full px-4 py-2.5 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition"
+          >
+            Share ad report
+          </button>
+        </div>
+      </div>
+
+      {/* Toast */}
+      {showToast && (
+        <div className="fixed bottom-6 right-6 z-[60] px-4 py-3 bg-gray-900 text-white rounded-xl shadow-lg text-sm animate-slide-up">
+          Link copied to clipboard
+        </div>
+      )}
+
+      {/* Animation styles */}
+      <style>{`
+        @keyframes slide-up {
+          from {
+            opacity: 0;
+            transform: translateY(10px);
+          }
+          to {
+            opacity: 1;
+            transform: translateY(0);
+          }
+        }
+        .animate-slide-up {
+          animation: slide-up 0.2s ease-out;
+        }
+      `}</style>
+    </>
+  );
+}
+
 export default function AnalyticsPage() {
   // Filter panel state
   const [filterOpen, setFilterOpen] = useState(false);
@@ -245,6 +659,22 @@ export default function AnalyticsPage() {
   const [activeStatus, setActiveStatus] = useState("");
   const [timeRange, setTimeRange] = useState("30");
   const [activeMetric, setActiveMetric] = useState("revenue");
+
+  // Ad report panel state
+  const [selectedAd, setSelectedAd] = useState<TopAd | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
+  const [selectedAdRank, setSelectedAdRank] = useState(1);
+
+  const openPanel = (ad: TopAd, rank: number) => {
+    setSelectedAd(ad);
+    setSelectedAdRank(rank);
+    setPanelOpen(true);
+  };
+
+  const closePanel = () => {
+    setPanelOpen(false);
+    setTimeout(() => setSelectedAd(null), 150);
+  };
 
   // Products data
   const [products, setProducts] = useState<Product[]>([]);
@@ -1020,7 +1450,10 @@ export default function AnalyticsPage() {
                 {/* Card Footer */}
                 <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
                   <span className="text-[10px] text-gray-400">{ad.campaign}</span>
-                  <button className="text-xs text-violet-600 hover:text-violet-700 font-medium">
+                  <button
+                    onClick={() => openPanel(ad, index + 1)}
+                    className="text-xs text-violet-600 hover:text-violet-700 font-medium"
+                  >
                     View report →
                   </button>
                 </div>
@@ -1029,6 +1462,14 @@ export default function AnalyticsPage() {
           })}
         </div>
       </div>
+
+      {/* Ad Report Slide-over Panel */}
+      <AdReportPanel
+        ad={selectedAd}
+        isOpen={panelOpen}
+        onClose={closePanel}
+        rank={selectedAdRank}
+      />
     </div>
   );
 }
