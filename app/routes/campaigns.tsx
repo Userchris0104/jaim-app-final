@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useNavigate } from "react-router";
 
 // Store interface
 interface Store {
@@ -483,9 +484,11 @@ function ManageConnectionsModal({
 function CampaignDetailModal({
   campaign,
   onClose,
+  onViewReport,
 }: {
   campaign: Campaign | null;
   onClose: () => void;
+  onViewReport: (campaignId: string) => void;
 }) {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -597,15 +600,26 @@ function CampaignDetailModal({
         </div>
 
         {/* Actions */}
-        <div className="p-6 border-t border-gray-100 flex items-center gap-3">
-          {campaign.status !== "ended" && (
-            <button className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition">
-              {campaign.status === "paused" ? "Resume Campaign" : "Pause Campaign"}
-            </button>
-          )}
-          <button className="flex-1 py-2.5 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-semibold hover:from-violet-700 hover:to-purple-700 transition">
-            Edit Campaign
+        <div className="p-6 border-t border-gray-100 space-y-3">
+          <button
+            onClick={() => onViewReport(campaign.id)}
+            className="w-full py-3 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            View Full Report
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
           </button>
+          <div className="flex items-center gap-3">
+            {campaign.status !== "ended" && (
+              <button className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition">
+                {campaign.status === "paused" ? "Resume Campaign" : "Pause Campaign"}
+              </button>
+            )}
+            <button className="flex-1 py-2.5 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-semibold hover:from-violet-700 hover:to-purple-700 transition">
+              Edit Campaign
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -731,6 +745,8 @@ function CampaignRow({
 }
 
 export default function CampaignsPage() {
+  const navigate = useNavigate();
+
   // Toast state
   const [toasts, setToasts] = useState<Toast[]>([]);
 
@@ -1302,6 +1318,10 @@ export default function CampaignsPage() {
       <CampaignDetailModal
         campaign={selectedCampaign}
         onClose={() => setSelectedCampaign(null)}
+        onViewReport={(campaignId) => {
+          setSelectedCampaign(null);
+          navigate(`/analytics?campaign=${campaignId}`);
+        }}
       />
 
       {/* Manage Connections Modal */}

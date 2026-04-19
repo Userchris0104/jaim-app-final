@@ -1115,6 +1115,10 @@ export default function AnalyticsPage() {
     if (ad) {
       setActiveAd(ad);
     }
+    const campaign = searchParams.get("campaign");
+    if (campaign) {
+      setActiveCampaign(campaign);
+    }
   }, [searchParams]);
   const [activeStatus, setActiveStatus] = useState("");
   const [activeAd, setActiveAd] = useState("");
