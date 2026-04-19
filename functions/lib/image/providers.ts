@@ -232,34 +232,62 @@ async function pollFashnResult(
 // MODE 2: Bria AI via fal.ai (Product shot)
 // ===========================================
 
+// Creative placement options for dynamic product positioning
+export type ProductPlacement =
+  | 'center_horizontal'
+  | 'center_vertical'
+  | 'upper_left'
+  | 'upper_right'
+  | 'bottom_left'
+  | 'bottom_right'
+  | 'right_center'
+  | 'left_center'
+  | 'upper_center'
+  | 'bottom_center';
+
+export interface BriaOptions {
+  placement?: ProductPlacement;
+  dynamicAngle?: boolean;  // Adds dynamic angle instructions to prompt
+}
+
 /**
  * Generate product shot using Bria AI via fal.ai
- * Used for non-wearable products or when FASHN is not applicable
+ * Creates engaging, dynamic product visuals with creative positioning
  */
 export async function generateWithBria(
   productImageUrl: string,
   sceneDescription: string,
   brandStyle: BrandStyleProfile | null,
   productStyle: ProductStyleProfile | null,
-  env: Env
+  env: Env,
+  options?: BriaOptions
 ): Promise<string | null> {
   if (!env.FAL_API_KEY) {
     console.warn('[BRIA] No fal.ai API key configured');
     return null;
   }
 
+  // Build engaging scene description
+  const dynamicInstructions = options?.dynamicAngle
+    ? 'Dynamic angle, product appears alive and engaging, professional commercial photography, '
+    : '';
+
   const fullSceneDescription = [
-    sceneDescription,
-    brandStyle?.visualTone ? `Brand visual tone: ${brandStyle.visualTone}` : '',
-    brandStyle?.mood ? `Brand mood: ${brandStyle.mood}` : '',
-    brandStyle?.colors?.length ? `Color palette: ${brandStyle.colors.map(c => c.hex).join(', ')}` : '',
-    productStyle?.lighting ? `Lighting style: ${productStyle.lighting}` : '',
-    productStyle?.composition ? `Composition: ${productStyle.composition}` : '',
-    productStyle?.background ? `Background style: ${productStyle.background}` : '',
-    brandStyle?.keyPatterns ? `Key patterns: ${brandStyle.keyPatterns}` : ''
+    dynamicInstructions + sceneDescription,
+    'High-end product photography',
+    'Sharp focus on product details',
+    brandStyle?.visualTone ? `${brandStyle.visualTone} aesthetic` : '',
+    brandStyle?.mood ? `${brandStyle.mood} atmosphere` : '',
+    brandStyle?.colors?.length ? `Color harmony with ${brandStyle.colors.map(c => c.label || c.hex).join(', ')}` : '',
+    productStyle?.lighting ? `${productStyle.lighting} lighting` : 'Professional studio lighting',
+    productStyle?.background ? `${productStyle.background} background` : '',
+    'Editorial quality, magazine-worthy composition'
   ].filter(Boolean).join('. ');
 
-  console.log('[BRIA] Generating with scene:', fullSceneDescription.slice(0, 200) + '...');
+  const placement = options?.placement || 'center_horizontal';
+
+  console.log('[BRIA] Generating with placement:', placement);
+  console.log('[BRIA] Scene:', fullSceneDescription.slice(0, 150) + '...');
 
   try {
     const response = await fetch('https://fal.run/fal-ai/bria/product-shot', {
@@ -271,8 +299,11 @@ export async function generateWithBria(
       body: JSON.stringify({
         image_url: productImageUrl,
         scene_description: fullSceneDescription,
+        placement_type: 'manual_placement',
+        manual_placement_selection: placement,
         num_results: 1,
-        fast: false
+        fast: false,
+        optimize_description: true
       })
     });
 

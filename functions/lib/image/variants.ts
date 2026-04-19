@@ -86,26 +86,26 @@ export function getSceneRulesForVariant(
   switch (variant) {
     case 'A':
       return {
-        environment: `Clean minimal ${config.imageStyle}. Soft gradient or subtle texture background. Professional commercial photography setup.`,
-        lighting: 'Even studio lighting, soft shadows',
-        specialInstructions: 'The empty center space is the hero of the frame. Minimalist aesthetic.',
-        negativePromptAdditions: ['busy', 'cluttered', 'props', 'decoration', 'complex background']
+        environment: `Elegant studio setting with ${config.imageStyle}. Soft gradient backdrop with subtle depth. Premium commercial photography that makes the product the hero. Clean surfaces, refined textures, sophisticated minimalism.`,
+        lighting: 'Professional studio lighting with soft fill, gentle highlights on product edges',
+        specialInstructions: 'Product should feel premium and desirable. Clean but not sterile.',
+        negativePromptAdditions: ['busy', 'cluttered', 'cheap', 'amateur', 'harsh shadows']
       };
 
     case 'B':
       return {
-        environment: `Lifestyle setting with ${config.imageStyle}. ${brandStyle?.mood || 'Contemporary'} atmosphere. Natural environment that tells a story.`,
-        lighting: 'Natural ambient lighting, warm tones',
-        specialInstructions: 'Create an aspirational lifestyle scene. The product placement zone should feel organic.',
-        negativePromptAdditions: ['studio', 'artificial', 'sterile', 'clinical']
+        environment: `Aspirational lifestyle scene with ${config.imageStyle}. ${brandStyle?.mood || 'Contemporary'} atmosphere. Natural setting that tells a story - coffee table, window light, living space. Product naturally integrated into a beautiful moment.`,
+        lighting: 'Golden hour warmth, natural window light, soft ambient glow',
+        specialInstructions: 'Create desire through context. Product should feel like part of an enviable lifestyle.',
+        negativePromptAdditions: ['sterile', 'clinical', 'isolated', 'floating', 'disconnected']
       };
 
     case 'C':
       return {
-        environment: `Bold editorial composition with ${config.imageStyle}. ${brandStyle?.visualTone || 'Dynamic'} visual impact. Unexpected creative angle.`,
-        lighting: 'Dramatic directional lighting, strong contrast',
-        specialInstructions: 'Create visual tension and intrigue. Pattern-interrupt aesthetic that stops scrolling.',
-        negativePromptAdditions: ['conventional', 'standard', 'typical', 'ordinary', 'plain']
+        environment: `Bold creative composition with ${config.imageStyle}. ${brandStyle?.visualTone || 'Dynamic'} visual impact. Unexpected angle, artistic shadows, geometric elements. Editorial fashion magazine aesthetic.`,
+        lighting: 'Dramatic directional light, bold shadows, high contrast, artistic mood',
+        specialInstructions: 'Stop the scroll. Create visual intrigue that demands attention. Bold but tasteful.',
+        negativePromptAdditions: ['boring', 'conventional', 'flat', 'ordinary', 'expected']
       };
   }
 }

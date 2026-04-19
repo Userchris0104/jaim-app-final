@@ -167,8 +167,49 @@ function selectModelVariant(
   return selected;
 }
 
+// Creative placement configurations for each variant
+const VARIANT_PLACEMENTS: Record<AdVariant, {
+  placement: 'center_horizontal' | 'right_center' | 'left_center' | 'bottom_center' | 'upper_center';
+  dynamicAngle: boolean;
+  imageIndex: number;  // Which product image to use (0, 1, 2...)
+}> = {
+  A: { placement: 'center_horizontal', dynamicAngle: false, imageIndex: 0 },  // Clean, centered
+  B: { placement: 'right_center', dynamicAngle: true, imageIndex: 1 },        // Lifestyle, dynamic right
+  C: { placement: 'left_center', dynamicAngle: true, imageIndex: 2 },         // Bold, dynamic left
+};
+
+/**
+ * Get all product images from Shopify data
+ */
+function getAllProductImages(product: Product): string[] {
+  const images: string[] = [];
+
+  // Try parsing images array
+  if (product.images) {
+    try {
+      const parsed = JSON.parse(product.images);
+      if (Array.isArray(parsed)) {
+        images.push(...parsed);
+      }
+    } catch {
+      // Not JSON, might be a single URL
+      if (typeof product.images === 'string' && product.images.startsWith('http')) {
+        images.push(product.images);
+      }
+    }
+  }
+
+  // Add primary image if not already included
+  if (product.image_url && !images.includes(product.image_url)) {
+    images.unshift(product.image_url);
+  }
+
+  return images.filter(Boolean);
+}
+
 /**
  * Generate image for a specific variant with model/product mode control
+ * Uses different product photos and placements for each variant
  */
 async function generateAdImageForVariant(
   product: Product,
@@ -177,29 +218,21 @@ async function generateAdImageForVariant(
   brandStyle: BrandStyleProfile | null,
   productStyle: ProductStyleProfile | null,
   env: Env,
-  useModel: boolean
+  useModel: boolean,
+  variant: AdVariant
 ): Promise<ImageGenerationResult> {
   // Import the providers dynamically to avoid circular deps
   const {
     generateWithFashn,
     generateWithBria,
     generateFluxBackground,
-    saveToR2,
-    isWearableProduct
+    saveToR2
   } = await import('../lib/image/providers');
 
-  // Get product image URL
-  let productImageUrl: string | null = product.image_url;
-  if (!productImageUrl && product.images) {
-    try {
-      const images = JSON.parse(product.images);
-      productImageUrl = images[0] || null;
-    } catch {
-      productImageUrl = null;
-    }
-  }
+  // Get ALL product images
+  const allImages = getAllProductImages(product);
 
-  if (!productImageUrl) {
+  if (allImages.length === 0) {
     return {
       finalImageUrl: null,
       sceneImageUrl: null,
@@ -207,6 +240,13 @@ async function generateAdImageForVariant(
       method: 'shopify_only'
     };
   }
+
+  // Select image based on variant (cycle through available images)
+  const variantConfig = VARIANT_PLACEMENTS[variant];
+  const imageIndex = variantConfig.imageIndex % allImages.length;
+  const productImageUrl = allImages[imageIndex];
+
+  console.log(`[IMAGE_GEN] Variant ${variant}: Using image ${imageIndex + 1}/${allImages.length}`);
 
   const adId = crypto.randomUUID();
 
@@ -234,16 +274,20 @@ async function generateAdImageForVariant(
     console.warn('[IMAGE_GEN] FASHN failed, falling back to Bria');
   }
 
-  // PRODUCT MODE: Use Bria for product shots
+  // PRODUCT MODE: Use Bria for engaging product shots
   if (env.FAL_API_KEY && productImageUrl) {
-    console.log('[IMAGE_GEN] Mode: Bria product shot');
+    console.log(`[IMAGE_GEN] Mode: Bria product shot (${variantConfig.placement}, dynamic: ${variantConfig.dynamicAngle})`);
 
     const briaUrl = await generateWithBria(
       productImageUrl,
       sceneRules.environment,
       brandStyle,
       productStyle,
-      env
+      env,
+      {
+        placement: variantConfig.placement,
+        dynamicAngle: variantConfig.dynamicAngle
+      }
     );
 
     if (briaUrl) {
@@ -591,7 +635,8 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
             brandStyle,
             productStyle,
             env,
-            useModel
+            useModel,
+            variant
           ),
           generateAdCopy(product, env, brandStyle, productStyle, copyPrompt)
         ]);
