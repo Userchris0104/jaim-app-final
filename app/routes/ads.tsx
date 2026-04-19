@@ -278,11 +278,170 @@ function AdCard({
   );
 }
 
+// Ad Preview Modal
+function AdPreviewModal({
+  ad,
+  onClose,
+}: {
+  ad: Ad | null;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    if (ad) {
+      document.addEventListener("keydown", handleEscape);
+      document.body.style.overflow = "hidden";
+    }
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+      document.body.style.overflow = "";
+    };
+  }, [ad, onClose]);
+
+  if (!ad) return null;
+
+  const roasColor = ad.roas >= 3 ? "text-emerald-600" : ad.roas < 2 ? "text-red-600" : "text-gray-900";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl max-w-4xl w-full shadow-2xl overflow-hidden max-h-[90vh] flex"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Left: Ad Creative */}
+        <div className="w-1/2 bg-gray-100 relative">
+          {ad.imageUrl ? (
+            <img
+              src={ad.imageUrl}
+              alt={ad.title}
+              className="w-full h-full object-cover"
+            />
+          ) : (
+            <div className="w-full h-full flex items-center justify-center text-gray-400">
+              <svg className="w-24 h-24" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+              </svg>
+            </div>
+          )}
+
+          {/* Platforms */}
+          <div className="absolute top-4 right-4 flex gap-1">
+            {ad.platforms.map((platform) => (
+              <PlatformIcon key={platform} platform={platform} />
+            ))}
+          </div>
+
+          {/* Status */}
+          <div className="absolute bottom-4 right-4">
+            <StatusBadge status={ad.status} roas={ad.roas} />
+          </div>
+        </div>
+
+        {/* Right: Ad Details */}
+        <div className="w-1/2 p-6 overflow-y-auto">
+          {/* Close Button */}
+          <button
+            onClick={onClose}
+            className="absolute top-4 right-4 w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition"
+          >
+            <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+
+          {/* Title & Campaign */}
+          <div className="mb-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-1">{ad.title}</h2>
+            <div className="flex items-center gap-2 text-sm text-gray-500">
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+              </svg>
+              {ad.campaign.name}
+            </div>
+          </div>
+
+          {/* Ad Copy */}
+          <div className="space-y-4 mb-6">
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Headline</h4>
+              <p className="text-gray-900 font-medium">{ad.headline}</p>
+            </div>
+            {ad.primaryText && (
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Primary Text</h4>
+                <p className="text-gray-700">{ad.primaryText}</p>
+              </div>
+            )}
+            {ad.description && (
+              <div>
+                <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1">Description</h4>
+                <p className="text-gray-600 text-sm">{ad.description}</p>
+              </div>
+            )}
+            <div>
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-2">Call to Action</h4>
+              <span className="inline-block px-4 py-2 bg-violet-600 text-white text-sm font-semibold rounded-lg">
+                {ad.cta}
+              </span>
+            </div>
+          </div>
+
+          {/* Performance Metrics */}
+          <div className="border-t border-gray-100 pt-6">
+            <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Performance</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 mb-1">ROAS</p>
+                <p className={`text-2xl font-bold ${roasColor}`}>{ad.roas.toFixed(1)}x</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 mb-1">Revenue</p>
+                <p className="text-2xl font-bold text-gray-900">${ad.revenue.toLocaleString()}</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 mb-1">Clicks</p>
+                <p className="text-2xl font-bold text-gray-900">{ad.clicks.toLocaleString()}</p>
+              </div>
+              <div className="bg-gray-50 rounded-xl p-4">
+                <p className="text-xs text-gray-500 mb-1">CTR</p>
+                <p className="text-2xl font-bold text-gray-900">{ad.ctr.toFixed(2)}%</p>
+              </div>
+            </div>
+          </div>
+
+          {/* Format & Strategy */}
+          <div className="border-t border-gray-100 pt-6 mt-6">
+            <div className="flex items-center gap-4 text-sm">
+              <div className="flex items-center gap-2">
+                <span className="text-gray-500">Format:</span>
+                <span className="font-medium text-gray-900 capitalize">{ad.format === 'static' ? 'Static Image' : 'Carousel'}</span>
+              </div>
+              {ad.creativeStrategy && (
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Strategy:</span>
+                  <span className="font-medium text-gray-900 capitalize">{ad.creativeStrategy.replace('_', ' ')}</span>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdsPage() {
   const navigate = useNavigate();
   const [data, setData] = useState<AdsData | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [previewAd, setPreviewAd] = useState<Ad | null>(null);
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
@@ -663,10 +822,7 @@ export default function AdsPage() {
               key={ad.id}
               ad={ad}
               maxRoas={maxRoas}
-              onPreview={() => {
-                // TODO: Open preview modal
-                console.log("Preview ad:", ad.id);
-              }}
+              onPreview={() => setPreviewAd(ad)}
               onShare={() => {
                 // TODO: Open share options
                 console.log("Share ad:", ad.id);
@@ -675,6 +831,9 @@ export default function AdsPage() {
           ))}
         </div>
       )}
+
+      {/* Ad Preview Modal */}
+      <AdPreviewModal ad={previewAd} onClose={() => setPreviewAd(null)} />
     </div>
   );
 }
