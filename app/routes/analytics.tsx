@@ -1751,7 +1751,7 @@ export default function AnalyticsPage() {
           </div>
         </div>
         <div className="text-right">
-          <div className="text-3xl font-bold text-violet-600">{filteredData.roas}x</div>
+          <div className="text-3xl font-bold text-violet-600">{filteredData.roas.toFixed(1)}x</div>
           <div className="text-sm text-gray-500">Return on ad spend</div>
         </div>
       </div>
