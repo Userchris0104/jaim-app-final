@@ -1141,7 +1141,7 @@ export default function AnalyticsPage() {
       {/* SECTION 3 — TWO COLUMN LAYOUT */}
       <div className="grid grid-cols-5 gap-6 mb-6">
         {/* LEFT COLUMN - Daily Performance (3fr) */}
-        <div className="col-span-3 bg-white rounded-2xl border border-gray-100 p-6">
+        <div className="col-span-3 bg-white rounded-2xl border border-gray-100 p-6 flex flex-col">
           {/* Header */}
           <div className="flex items-start justify-between mb-4">
             <div>
@@ -1166,7 +1166,7 @@ export default function AnalyticsPage() {
           </div>
 
           {/* Stacked Bar Chart */}
-          <div className="h-[220px] flex items-end justify-between gap-3 mb-4">
+          <div className="flex-1 min-h-[200px] flex items-end justify-between gap-3 mb-4">
             {chartData.map((d, i) => {
               const height = maxChartValue > 0 ? (d.value / maxChartValue) * 100 : 0;
               // Generate stacked segment heights (mock data for visual effect)
@@ -1243,7 +1243,7 @@ export default function AnalyticsPage() {
           </div>
 
           {/* 4-column Stat Row */}
-          <div className="grid grid-cols-4 gap-3 pt-3 border-t border-gray-100">
+          <div className="grid grid-cols-4 gap-3 mt-3">
             <div className="text-center">
               <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center mx-auto mb-2">
                 <svg className="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
