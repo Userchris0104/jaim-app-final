@@ -437,11 +437,15 @@ export default function AdsPage() {
   const [searchQuery, setSearchQuery] = useState("");
   const [activeTab, setActiveTab] = useState("all");
 
-  // Read status filter from URL on mount
+  // Read filters from URL on mount
   useEffect(() => {
     const status = searchParams.get("status");
     if (status && ["ready", "processing", "published", "archived"].includes(status)) {
       setActiveTab(status);
+    }
+    const sort = searchParams.get("sort");
+    if (sort && ["best", "worst", "newest", "oldest", "roas-high", "revenue-high"].includes(sort)) {
+      setSortBy(sort);
     }
   }, [searchParams]);
   const [showFilters, setShowFilters] = useState(false);

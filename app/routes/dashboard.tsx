@@ -786,7 +786,10 @@ export default function DashboardPage() {
                 <p className="text-xs text-gray-500">Your best performers this week</p>
               </div>
             </div>
-            <button className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1">
+            <button
+              onClick={() => navigate("/ads?sort=best")}
+              className="text-sm text-indigo-600 hover:text-indigo-700 font-medium flex items-center gap-1"
+            >
               View All
               <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
