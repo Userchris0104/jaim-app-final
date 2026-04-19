@@ -247,6 +247,35 @@ export default function DashboardPage() {
   const [chartType, setChartType] = useState<"revenue" | "spend">("revenue");
   const [expandedPlatform, setExpandedPlatform] = useState<string | null>(null);
   const [selectedAd, setSelectedAd] = useState<Ad | null>(null);
+  const [showNotifications, setShowNotifications] = useState(false);
+
+  // Mock notification data
+  const notifications = [
+    {
+      id: 1,
+      type: "success" as const,
+      title: "Campaign performing well",
+      message: "Summer Sale 2024 hit 6.2x ROAS",
+      time: "2 min ago",
+      read: false,
+    },
+    {
+      id: 2,
+      type: "warning" as const,
+      title: "Budget running low",
+      message: "New Arrivals campaign at 85% budget",
+      time: "1 hour ago",
+      read: false,
+    },
+    {
+      id: 3,
+      type: "info" as const,
+      title: "New ad generated",
+      message: "AI created 3 new ads for review",
+      time: "3 hours ago",
+      read: false,
+    },
+  ];
 
   const handleViewReport = (adId: number) => {
     setSelectedAd(null);
@@ -278,12 +307,115 @@ export default function DashboardPage() {
             </div>
 
             {/* Notification */}
-            <button className="relative p-2.5 rounded-xl bg-white border border-gray-200 hover:border-gray-300 hover:shadow-md transition-all">
-              <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
-              </svg>
-              <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center">3</span>
-            </button>
+            <div className="relative">
+              <button
+                onClick={() => setShowNotifications(!showNotifications)}
+                className={`relative p-2.5 rounded-xl bg-white border transition-all ${
+                  showNotifications
+                    ? "border-violet-300 shadow-md ring-2 ring-violet-100"
+                    : "border-gray-200 hover:border-gray-300 hover:shadow-md"
+                }`}
+              >
+                <svg className="w-5 h-5 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                </svg>
+                <span className="absolute -top-1 -right-1 w-5 h-5 bg-rose-500 rounded-full text-[10px] font-bold text-white flex items-center justify-center">
+                  {notifications.filter(n => !n.read).length}
+                </span>
+              </button>
+
+              {/* Notification Dropdown */}
+              {showNotifications && (
+                <>
+                  {/* Backdrop */}
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowNotifications(false)}
+                  />
+
+                  {/* Dropdown Panel */}
+                  <div className="absolute right-0 mt-2 w-80 bg-white rounded-2xl border border-gray-200 shadow-xl z-50 overflow-hidden animate-in fade-in slide-in-from-top-2 duration-200">
+                    {/* Header */}
+                    <div className="px-4 py-3 border-b border-gray-100 flex items-center justify-between">
+                      <h3 className="font-semibold text-gray-900">Notifications</h3>
+                      <button className="text-xs text-violet-600 hover:text-violet-700 font-medium">
+                        Mark all read
+                      </button>
+                    </div>
+
+                    {/* Notification List */}
+                    <div className="max-h-80 overflow-y-auto">
+                      {notifications.map((notification) => (
+                        <div
+                          key={notification.id}
+                          className={`px-4 py-3 border-b border-gray-50 hover:bg-gray-50 transition-colors cursor-pointer ${
+                            !notification.read ? "bg-violet-50/30" : ""
+                          }`}
+                        >
+                          <div className="flex gap-3">
+                            {/* Icon */}
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${
+                              notification.type === "success"
+                                ? "bg-emerald-100"
+                                : notification.type === "warning"
+                                ? "bg-amber-100"
+                                : "bg-violet-100"
+                            }`}>
+                              {notification.type === "success" && (
+                                <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                                </svg>
+                              )}
+                              {notification.type === "warning" && (
+                                <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                                </svg>
+                              )}
+                              {notification.type === "info" && (
+                                <svg className="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                                </svg>
+                              )}
+                            </div>
+
+                            {/* Content */}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-2">
+                                <p className="text-sm font-medium text-gray-900 truncate">
+                                  {notification.title}
+                                </p>
+                                {!notification.read && (
+                                  <span className="w-2 h-2 bg-violet-500 rounded-full flex-shrink-0" />
+                                )}
+                              </div>
+                              <p className="text-xs text-gray-500 mt-0.5 truncate">
+                                {notification.message}
+                              </p>
+                              <p className="text-[10px] text-gray-400 mt-1">
+                                {notification.time}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Footer */}
+                    <div className="px-4 py-3 bg-gray-50 border-t border-gray-100">
+                      <button
+                        onClick={() => {
+                          setShowNotifications(false);
+                          navigate("/settings?section=notifications");
+                        }}
+                        className="w-full text-center text-sm text-violet-600 hover:text-violet-700 font-medium"
+                      >
+                        View all notifications
+                      </button>
+                    </div>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
         {/* Top Row: ROAS + Metrics */}
