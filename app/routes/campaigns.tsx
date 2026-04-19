@@ -1,5 +1,13 @@
 import { useState, useEffect, useMemo } from "react";
 
+// Store interface
+interface Store {
+  id: string;
+  name: string;
+  domain: string;
+  isCurrent: boolean;
+}
+
 // Platform connection state interface
 interface PlatformConnection {
   platform: "meta" | "tiktok";
@@ -451,6 +459,10 @@ export default function CampaignsPage() {
   // Campaign detail modal state
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
 
+  // Current store state
+  const [currentStore, setCurrentStore] = useState<Store | null>(null);
+  const [storeLoading, setStoreLoading] = useState(true);
+
   // Dev preview toggle state
   const [previewMode, setPreviewMode] = useState<"disconnected" | "connected">("connected");
 
@@ -459,6 +471,27 @@ export default function CampaignsPage() {
     { platform: "meta", connected: false },
     { platform: "tiktok", connected: false },
   ]);
+
+  // Fetch current store on mount
+  useEffect(() => {
+    const fetchStore = async () => {
+      try {
+        const response = await fetch("/api/stores");
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.stores) {
+            const current = data.stores.find((s: Store) => s.isCurrent);
+            setCurrentStore(current || null);
+          }
+        }
+      } catch (error) {
+        console.error("Error fetching store:", error);
+      } finally {
+        setStoreLoading(false);
+      }
+    };
+    fetchStore();
+  }, []);
 
   // For connected state preview, simulate connections
   const effectiveConnections = useMemo(() => {
@@ -473,13 +506,15 @@ export default function CampaignsPage() {
 
   const isAnyConnected = effectiveConnections.some((p) => p.connected);
 
-  // Mock campaigns - seeded by a demo store ID
+  // Mock campaigns - seeded by current store ID for unique data per store
   const mockCampaigns = useMemo(() => {
     if (previewMode === "connected") {
-      return generateMockCampaigns("demo-store-123");
+      // Use actual store ID if available, otherwise fallback to demo ID
+      const storeId = currentStore?.id || "demo-store-123";
+      return generateMockCampaigns(storeId);
     }
     return [];
-  }, [previewMode]);
+  }, [previewMode, currentStore?.id]);
 
   // Filter state
   const [searchQuery, setSearchQuery] = useState("");
