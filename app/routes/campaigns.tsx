@@ -651,40 +651,44 @@ function CampaignRow({
     <div className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md hover:border-violet-200 transition-all">
       <div className="flex items-center gap-4">
         {/* Platform Icon */}
-        <PlatformIcon platform={campaign.platform} />
+        <div className="flex-shrink-0">
+          <PlatformIcon platform={campaign.platform} />
+        </div>
 
-        {/* Campaign Info */}
-        <div className="flex-1 min-w-0">
+        {/* Campaign Info - fixed width for alignment */}
+        <div className="w-64 min-w-0 flex-shrink-0">
           <div className="flex items-center gap-2 mb-1">
             <h4 className="font-semibold text-gray-900 truncate">{campaign.name}</h4>
             <StatusBadge status={campaign.status} />
           </div>
-          <p className="text-sm text-gray-500">
+          <p className="text-sm text-gray-500 truncate">
             {campaign.objective} · {dateRange}
           </p>
         </div>
 
-        {/* Stats */}
-        <div className="hidden lg:grid grid-cols-5 gap-6 text-center">
-          <div>
-            <p className="text-xs text-gray-500 mb-0.5">Spend</p>
-            <p className="text-sm font-semibold text-gray-900">${campaign.spend.toLocaleString()}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 mb-0.5">Revenue</p>
-            <p className="text-sm font-semibold text-gray-900">${campaign.revenue.toLocaleString()}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 mb-0.5">ROAS</p>
-            <p className={`text-sm font-semibold ${roasColor}`}>{campaign.roas.toFixed(1)}x</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 mb-0.5">Clicks</p>
-            <p className="text-sm font-semibold text-gray-900">{campaign.clicks.toLocaleString()}</p>
-          </div>
-          <div>
-            <p className="text-xs text-gray-500 mb-0.5">CTR</p>
-            <p className="text-sm font-semibold text-gray-900">{campaign.ctr.toFixed(2)}%</p>
+        {/* Stats - fixed width columns for alignment */}
+        <div className="hidden lg:flex flex-1 justify-end">
+          <div className="grid grid-cols-5 text-center" style={{ width: '400px' }}>
+            <div className="w-20">
+              <p className="text-xs text-gray-500 mb-0.5">Spend</p>
+              <p className="text-sm font-semibold text-gray-900">${campaign.spend.toLocaleString()}</p>
+            </div>
+            <div className="w-20">
+              <p className="text-xs text-gray-500 mb-0.5">Revenue</p>
+              <p className="text-sm font-semibold text-gray-900">${campaign.revenue.toLocaleString()}</p>
+            </div>
+            <div className="w-20">
+              <p className="text-xs text-gray-500 mb-0.5">ROAS</p>
+              <p className={`text-sm font-semibold ${roasColor}`}>{campaign.roas.toFixed(1)}x</p>
+            </div>
+            <div className="w-20">
+              <p className="text-xs text-gray-500 mb-0.5">Clicks</p>
+              <p className="text-sm font-semibold text-gray-900">{campaign.clicks.toLocaleString()}</p>
+            </div>
+            <div className="w-20">
+              <p className="text-xs text-gray-500 mb-0.5">CTR</p>
+              <p className="text-sm font-semibold text-gray-900">{campaign.ctr.toFixed(2)}%</p>
+            </div>
           </div>
         </div>
 
