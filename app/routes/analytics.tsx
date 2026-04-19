@@ -283,6 +283,7 @@ function AdReportPanel({
   rank: number;
 }) {
   const [isClosing, setIsClosing] = useState(false);
+  const [showToast, setShowToast] = useState(false);
 
   // Handle close with animation
   const handleClose = () => {
@@ -397,7 +398,6 @@ function AdReportPanel({
   };
 
   // Toast for share
-  const [showToast, setShowToast] = useState(false);
   const handleShare = () => {
     navigator.clipboard.writeText(window.location.href + `/ads/${ad.id}`);
     setShowToast(true);
