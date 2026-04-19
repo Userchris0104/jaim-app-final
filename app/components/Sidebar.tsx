@@ -1,4 +1,4 @@
-import { NavLink } from "react-router";
+import { NavLink, useNavigate } from "react-router";
 
 const navItems = [
   {
@@ -76,6 +76,7 @@ const navItems = [
 ];
 
 export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: boolean; setIsCollapsed: (v: boolean) => void }) {
+  const navigate = useNavigate();
 
   return (
     <aside className={`${isCollapsed ? 'w-20' : 'w-64'} fixed top-0 left-0 h-screen bg-gradient-to-b from-white to-slate-50/50 border-r border-gray-100 flex flex-col transition-all duration-300 z-40 overflow-y-auto`}>
@@ -140,7 +141,10 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
               <span className="font-semibold text-sm">Upgrade to Pro</span>
             </div>
             <p className="text-xs text-white/80 mb-3">Unlock unlimited ads and advanced analytics</p>
-            <button className="w-full py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition">
+            <button
+              onClick={() => navigate("/settings?section=plan-billing")}
+              className="w-full py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition"
+            >
               Learn More
             </button>
           </div>
