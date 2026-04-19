@@ -1165,31 +1165,72 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          {/* Bar Chart */}
-          <div className="h-[140px] flex items-end justify-between gap-2 mb-4">
+          {/* Stacked Bar Chart */}
+          <div className="h-[220px] flex items-end justify-between gap-3 mb-4">
             {chartData.map((d, i) => {
               const height = maxChartValue > 0 ? (d.value / maxChartValue) * 100 : 0;
+              // Generate stacked segment heights (mock data for visual effect)
+              const segment1 = height * 0.45; // Revenue portion
+              const segment2 = height * 0.30; // Clicks portion
+              const segment3 = height * 0.25; // Conversions portion
               return (
                 <div key={i} className="flex-1 flex flex-col items-center">
                   <span className="text-[9px] text-gray-400 mb-1">
                     {activeMetric === "revenue" || activeMetric === "sales" ? "$" : ""}
                     {d.value.toLocaleString()}
                   </span>
-                  <div
-                    className="w-full rounded-t"
-                    style={{
-                      height: `${Math.max(height, 4)}%`,
-                      backgroundColor: "rgba(124, 58, 237, 0.85)",
-                    }}
-                  />
+                  <div className="w-full flex flex-col-reverse" style={{ height: `${Math.max(height, 8)}%` }}>
+                    {/* Bottom segment - Revenue (purple) */}
+                    <div
+                      className="w-full"
+                      style={{
+                        height: `${segment1}%`,
+                        backgroundColor: "rgba(124, 58, 237, 0.9)",
+                        borderRadius: "0 0 4px 4px",
+                      }}
+                    />
+                    {/* Middle segment - Clicks (violet light) */}
+                    <div
+                      className="w-full"
+                      style={{
+                        height: `${segment2}%`,
+                        backgroundColor: "rgba(139, 92, 246, 0.7)",
+                      }}
+                    />
+                    {/* Top segment - Conversions (violet lighter) */}
+                    <div
+                      className="w-full"
+                      style={{
+                        height: `${segment3}%`,
+                        backgroundColor: "rgba(167, 139, 250, 0.5)",
+                        borderRadius: "4px 4px 0 0",
+                      }}
+                    />
+                  </div>
                   <span className="text-[10px] text-gray-400 mt-2">{d.day}</span>
                 </div>
               );
             })}
           </div>
 
+          {/* Chart Legend */}
+          <div className="flex items-center gap-4 mb-4">
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "rgba(124, 58, 237, 0.9)" }} />
+              <span className="text-[10px] text-gray-500">Revenue</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "rgba(139, 92, 246, 0.7)" }} />
+              <span className="text-[10px] text-gray-500">Clicks</span>
+            </div>
+            <div className="flex items-center gap-1.5">
+              <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "rgba(167, 139, 250, 0.5)" }} />
+              <span className="text-[10px] text-gray-500">Conversions</span>
+            </div>
+          </div>
+
           {/* Chart Footer */}
-          <div className="flex items-center justify-between pt-3 border-t border-gray-100">
+          <div className="flex items-center justify-between pt-3 border-t border-gray-100 mb-4">
             <div className="flex items-center gap-2 text-sm">
               <span className="w-2 h-2 rounded-full bg-violet-600" />
               <span className="text-gray-600">
@@ -1201,55 +1242,47 @@ export default function AnalyticsPage() {
             </button>
           </div>
 
-          {/* 2×2 Stat Grid */}
-          <div className="grid grid-cols-2 gap-3 mt-4">
-            <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-violet-100 flex items-center justify-center">
-                <svg className="w-5 h-5 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          {/* 4-column Stat Row */}
+          <div className="grid grid-cols-4 gap-3 pt-3 border-t border-gray-100">
+            <div className="text-center">
+              <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center mx-auto mb-2">
+                <svg className="w-4 h-4 text-violet-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                 </svg>
               </div>
-              <div>
-                <div className="text-xl font-bold text-gray-900">{(filteredData.impressions / 1000).toFixed(1)}k</div>
-                <div className="text-xs text-gray-500">Store visits</div>
-              </div>
+              <div className="text-lg font-bold text-gray-900">{(filteredData.impressions / 1000).toFixed(1)}k</div>
+              <div className="text-[10px] text-gray-500">Store visits</div>
             </div>
 
-            <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-emerald-100 flex items-center justify-center">
-                <svg className="w-5 h-5 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="text-center">
+              <div className="w-8 h-8 rounded-lg bg-emerald-100 flex items-center justify-center mx-auto mb-2">
+                <svg className="w-4 h-4 text-emerald-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
                 </svg>
               </div>
-              <div>
-                <div className="text-xl font-bold text-gray-900">{filteredData.conversions}</div>
-                <div className="text-xs text-gray-500">Orders placed</div>
-              </div>
+              <div className="text-lg font-bold text-gray-900">{filteredData.conversions}</div>
+              <div className="text-[10px] text-gray-500">Orders placed</div>
             </div>
 
-            <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-amber-100 flex items-center justify-center">
-                <svg className="w-5 h-5 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="text-center">
+              <div className="w-8 h-8 rounded-lg bg-amber-100 flex items-center justify-center mx-auto mb-2">
+                <svg className="w-4 h-4 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 15l-2 5L9 9l11 4-5 2zm0 0l5 5M7.188 2.239l.777 2.897M5.136 7.965l-2.898-.777M13.95 4.05l-2.122 2.122m-5.657 5.656l-2.12 2.122" />
                 </svg>
               </div>
-              <div>
-                <div className="text-xl font-bold text-gray-900">{filteredData.ctr.toFixed(1)}%</div>
-                <div className="text-xs text-gray-500">Click through rate</div>
-              </div>
+              <div className="text-lg font-bold text-gray-900">{filteredData.ctr.toFixed(1)}%</div>
+              <div className="text-[10px] text-gray-500">Click through rate</div>
             </div>
 
-            <div className="bg-gray-50 rounded-xl p-4 flex items-center gap-3">
-              <div className="w-10 h-10 rounded-lg bg-blue-100 flex items-center justify-center">
-                <svg className="w-5 h-5 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <div className="text-center">
+              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center mx-auto mb-2">
+                <svg className="w-4 h-4 text-blue-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <div>
-                <div className="text-xl font-bold text-gray-900">${filteredData.cpa.toFixed(2)}</div>
-                <div className="text-xs text-gray-500">Cost per sale</div>
-              </div>
+              <div className="text-lg font-bold text-gray-900">${filteredData.cpa.toFixed(2)}</div>
+              <div className="text-[10px] text-gray-500">Cost per sale</div>
             </div>
           </div>
         </div>
