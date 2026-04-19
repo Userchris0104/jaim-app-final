@@ -193,6 +193,139 @@ function ToastNotification({ toast, onDismiss }: { toast: Toast; onDismiss: () =
   );
 }
 
+// Campaign Detail Modal
+function CampaignDetailModal({
+  campaign,
+  onClose,
+}: {
+  campaign: Campaign | null;
+  onClose: () => void;
+}) {
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    if (campaign) {
+      document.addEventListener("keydown", handleEscape);
+      document.body.style.overflow = "hidden";
+    }
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+      document.body.style.overflow = "";
+    };
+  }, [campaign, onClose]);
+
+  if (!campaign) return null;
+
+  const roasColor = campaign.roas >= 3 ? "text-emerald-600" : campaign.roas < 2 ? "text-red-600" : "text-gray-900";
+  const dateRange = campaign.endDate
+    ? `${campaign.startDate} - ${campaign.endDate}`
+    : `Started ${campaign.startDate}`;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl max-w-2xl w-full shadow-2xl overflow-hidden max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="p-6 border-b border-gray-100">
+          <div className="flex items-start justify-between">
+            <div className="flex items-center gap-4">
+              <PlatformIcon platform={campaign.platform} />
+              <div>
+                <h2 className="text-xl font-bold text-gray-900">{campaign.name}</h2>
+                <p className="text-sm text-gray-500">{campaign.objective} · {dateRange}</p>
+              </div>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition"
+            >
+              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div className="mt-4">
+            <StatusBadge status={campaign.status} />
+          </div>
+        </div>
+
+        {/* Performance Metrics */}
+        <div className="p-6">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Performance</h3>
+          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-xs text-gray-500 mb-1">Spend</p>
+              <p className="text-2xl font-bold text-gray-900">${campaign.spend.toLocaleString()}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-xs text-gray-500 mb-1">Revenue</p>
+              <p className="text-2xl font-bold text-gray-900">${campaign.revenue.toLocaleString()}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-xs text-gray-500 mb-1">ROAS</p>
+              <p className={`text-2xl font-bold ${roasColor}`}>{campaign.roas.toFixed(1)}x</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-xs text-gray-500 mb-1">Impressions</p>
+              <p className="text-2xl font-bold text-gray-900">{campaign.impressions.toLocaleString()}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-xs text-gray-500 mb-1">Clicks</p>
+              <p className="text-2xl font-bold text-gray-900">{campaign.clicks.toLocaleString()}</p>
+            </div>
+            <div className="bg-gray-50 rounded-xl p-4">
+              <p className="text-xs text-gray-500 mb-1">CTR</p>
+              <p className="text-2xl font-bold text-gray-900">{campaign.ctr.toFixed(2)}%</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Campaign Details */}
+        <div className="p-6 border-t border-gray-100">
+          <h3 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-4">Details</h3>
+          <div className="grid grid-cols-2 gap-4 text-sm">
+            <div>
+              <p className="text-gray-500 mb-1">Platform</p>
+              <p className="font-medium text-gray-900">{campaign.platform === "meta" ? "Meta Ads" : "TikTok Ads"}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 mb-1">Objective</p>
+              <p className="font-medium text-gray-900">{campaign.objective}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 mb-1">Start Date</p>
+              <p className="font-medium text-gray-900">{campaign.startDate}</p>
+            </div>
+            <div>
+              <p className="text-gray-500 mb-1">End Date</p>
+              <p className="font-medium text-gray-900">{campaign.endDate || "Ongoing"}</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Actions */}
+        <div className="p-6 border-t border-gray-100 flex items-center gap-3">
+          {campaign.status !== "ended" && (
+            <button className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition">
+              {campaign.status === "paused" ? "Resume Campaign" : "Pause Campaign"}
+            </button>
+          )}
+          <button className="flex-1 py-2.5 bg-gradient-to-r from-violet-600 to-purple-600 text-white rounded-xl font-semibold hover:from-violet-700 hover:to-purple-700 transition">
+            Edit Campaign
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Campaign card/row component
 function CampaignRow({
   campaign,
@@ -314,6 +447,9 @@ function CampaignRow({
 export default function CampaignsPage() {
   // Toast state
   const [toasts, setToasts] = useState<Toast[]>([]);
+
+  // Campaign detail modal state
+  const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
 
   // Dev preview toggle state
   const [previewMode, setPreviewMode] = useState<"disconnected" | "connected">("connected");
@@ -452,9 +588,9 @@ export default function CampaignsPage() {
     showToast(`${platformName} connection coming soon`);
   };
 
-  // Handle campaign actions (mock)
-  const handleViewCampaign = (campaignId: string) => {
-    showToast("Campaign details coming soon");
+  // Handle campaign actions
+  const handleViewCampaign = (campaign: Campaign) => {
+    setSelectedCampaign(campaign);
   };
 
   const handleTogglePause = (campaignId: string) => {
@@ -823,7 +959,7 @@ export default function CampaignsPage() {
                   key={campaign.id}
                   campaign={campaign}
                   maxRoas={maxRoas}
-                  onView={() => handleViewCampaign(campaign.id)}
+                  onView={() => handleViewCampaign(campaign)}
                   onTogglePause={() => handleTogglePause(campaign.id)}
                 />
               ))}
@@ -831,6 +967,12 @@ export default function CampaignsPage() {
           )}
         </>
       )}
+
+      {/* Campaign Detail Modal */}
+      <CampaignDetailModal
+        campaign={selectedCampaign}
+        onClose={() => setSelectedCampaign(null)}
+      />
 
       {/* Toast Container */}
       <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2">
