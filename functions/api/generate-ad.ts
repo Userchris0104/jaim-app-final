@@ -5,12 +5,16 @@
  */
 
 import { getStoreFromCookieOrFallback } from '../lib/store-cookie';
+import { generateAdImage } from '../lib/image/fal-client';
 
 interface Env {
   DB: D1Database;
   R2: R2Bucket;
   OPENAI_API_KEY: string;
   GEMINI_API_KEY: string;
+  ANTHROPIC_API_KEY: string;
+  FAL_API_KEY: string;
+  USE_MOCK_PLATFORMS: string;
 }
 
 interface Product {
@@ -71,8 +75,101 @@ function detectCreativeStrategy(product: Product): string {
   return CREATIVE_STRATEGIES.default;
 }
 
-// Generate ad copy using OpenAI
+// Generate ad copy using Claude (primary) with OpenAI fallback
 async function generateAdCopy(
+  product: Product,
+  env: Env,
+  brandStyle?: BrandStyleProfile | null
+): Promise<{ headline: string; primaryText: string; description: string; cta: string }> {
+
+  // Try Claude first
+  if (env.ANTHROPIC_API_KEY) {
+    try {
+      const claudeResponse = await fetch(
+        'https://api.anthropic.com/v1/messages',
+        {
+          method: 'POST',
+          headers: {
+            'x-api-key': env.ANTHROPIC_API_KEY,
+            'anthropic-version': '2023-06-01',
+            'content-type': 'application/json',
+          },
+          body: JSON.stringify({
+            model: 'claude-sonnet-4-6',
+            max_tokens: 1000,
+            messages: [{
+              role: 'user',
+              content: `You are an expert performance marketing copywriter specialising in ecommerce social media ads. You write copy that is specific, benefit-focused, and native to each platform. Return ONLY valid JSON — no preamble, no markdown backticks, no explanation whatsoever.
+
+Write ad copy for this product. Return ONLY this exact JSON structure:
+{
+  "headline": "max 40 chars - specific and punchy",
+  "primaryText": "max 125 chars - benefit focused",
+  "description": "max 90 chars - supporting detail",
+  "cta": "one of: Shop Now, Learn More, Get Yours, Buy Now, Discover, Order Now"
+}
+
+Product: ${product.title}
+Category: ${product.product_type || 'General'}
+Description: ${product.description?.replace(/<[^>]*>/g, '').slice(0, 300) || ''}
+Price: $${product.price || 0}
+Brand: ${product.vendor || 'Unknown'}
+Brand mood: ${brandStyle?.mood || 'professional'}
+
+Rules:
+- Reference specific product details from above
+- Never use these words: high quality, amazing, incredible, perfect, best in class, game-changing
+- Match the brand mood exactly: ${brandStyle?.mood || 'professional'}
+- Headline must create curiosity or urgency
+- Be specific — generic copy is not acceptable`
+            }]
+          })
+        }
+      );
+
+      if (!claudeResponse.ok) {
+        throw new Error(`Claude API error: ${claudeResponse.status}`);
+      }
+
+      const claudeData = await claudeResponse.json() as any;
+      const copyText = claudeData.content?.[0]?.text;
+
+      if (!copyText) {
+        throw new Error('No content in Claude response');
+      }
+
+      // Parse JSON response (handle potential markdown wrapping)
+      let jsonStr = copyText.trim();
+      if (jsonStr.startsWith('```')) {
+        jsonStr = jsonStr.replace(/```json?\n?/g, '').replace(/```$/g, '').trim();
+      }
+
+      const parsed = JSON.parse(jsonStr);
+
+      // Validate required fields
+      if (!parsed.headline || !parsed.primaryText || !parsed.cta) {
+        throw new Error('Missing required fields in Claude response');
+      }
+
+      console.log('[COPY_GEN] Provider: Claude Sonnet');
+      return {
+        headline: parsed.headline,
+        primaryText: parsed.primaryText,
+        description: parsed.description || '',
+        cta: parsed.cta,
+      };
+    } catch (error) {
+      console.error('[COPY_GEN] Claude failed:', error);
+      console.warn('[COPY_GEN] Using OpenAI fallback');
+    }
+  }
+
+  // Fallback to OpenAI
+  return generateAdCopyOpenAI(product, env.OPENAI_API_KEY, brandStyle);
+}
+
+// OpenAI fallback for ad copy generation
+async function generateAdCopyOpenAI(
   product: Product,
   apiKey: string,
   brandStyle?: BrandStyleProfile | null
@@ -132,6 +229,7 @@ Brand: ${product.vendor || 'Unknown'}`,
     const data = await response.json() as any;
     const content = JSON.parse(data.choices[0].message.content);
 
+    console.log('[COPY_GEN] Provider: OpenAI fallback');
     return {
       headline: content.headline || `Discover ${product.title}`,
       primaryText: content.primaryText || content.primary_text || product.description?.slice(0, 125) || '',
@@ -139,7 +237,7 @@ Brand: ${product.vendor || 'Unknown'}`,
       cta: content.cta || 'Shop Now',
     };
   } catch (error) {
-    console.error('OpenAI error:', error);
+    console.error('[COPY_GEN] OpenAI fallback also failed:', error);
     return {
       headline: `Discover ${product.title}`,
       primaryText: product.description?.replace(/<[^>]*>/g, '').slice(0, 125) || `Check out our amazing ${product.title}`,
@@ -207,64 +305,8 @@ function generateImagePrompt(product: Product, strategy: string, brandStyle?: Br
   return prompt;
 }
 
-// Generate image using Gemini
-async function generateImage(
-  prompt: string,
-  apiKey: string,
-  productImageUrl: string | null
-): Promise<string | null> {
-  // If no API key, return the product's original image
-  if (!apiKey) {
-    return productImageUrl;
-  }
-
-  try {
-    const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash-exp-image-generation:generateContent?key=${apiKey}`,
-      {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          contents: [
-            {
-              parts: [
-                {
-                  text: prompt,
-                },
-              ],
-            },
-          ],
-          generationConfig: {
-            responseModalities: ['IMAGE', 'TEXT'],
-            responseMimeType: 'text/plain',
-          },
-        }),
-      }
-    );
-
-    if (!response.ok) {
-      console.error('Gemini API error:', response.status, await response.text());
-      return productImageUrl;
-    }
-
-    const data = await response.json() as any;
-
-    // Extract image from response
-    const parts = data.candidates?.[0]?.content?.parts || [];
-    for (const part of parts) {
-      if (part.inlineData?.mimeType?.startsWith('image/')) {
-        return `data:${part.inlineData.mimeType};base64,${part.inlineData.data}`;
-      }
-    }
-
-    return productImageUrl;
-  } catch (error) {
-    console.error('Image generation error:', error);
-    return productImageUrl;
-  }
-}
+// Image generation is handled by ../lib/image/fal-client.ts
+// Uses fal.ai FLUX as primary, Gemini as fallback
 
 export const onRequestPost: PagesFunction<Env> = async (context) => {
   const { env, request } = context;
@@ -302,48 +344,60 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     const brandStyle = await getBrandStyleProfile(env.DB, product.store_id);
 
     // Generate ad copy (with brand style if available)
-    const adCopy = await generateAdCopy(product, env.OPENAI_API_KEY, brandStyle);
+    const adCopy = await generateAdCopy(product, env, brandStyle);
 
     // Generate image prompt and image (with brand style if available)
+    // Uses fal.ai FLUX as primary, Gemini as fallback
     const imagePrompt = generateImagePrompt(product, strategy, brandStyle);
-    const imageUrl = await generateImage(imagePrompt, env.GEMINI_API_KEY, productImageUrl);
+    const format = 'square' as const; // TODO: Make configurable based on platform
+    const imageUrl = await generateAdImage({
+      prompt: imagePrompt,
+      format,
+      falApiKey: env.FAL_API_KEY,
+      geminiApiKey: env.GEMINI_API_KEY,
+      fallbackImageUrl: productImageUrl,
+    });
 
-    // Insert using production schema
+    // Insert using actual database schema
     await env.DB.prepare(`
       INSERT INTO generated_ads (
-        id, store_id, product_id, script, video_style, status,
-        ad_headline, ad_primary_text, ad_description, ad_cta_button,
-        thumbnail_url, creative_strategy, title, created_at, updated_at
+        id, store_id, product_id, status,
+        headline, primary_text, description, call_to_action,
+        image_url, image_prompt, platform, format, creative_strategy,
+        created_at, updated_at
       )
-      VALUES (?, ?, ?, ?, ?, 'inbox', ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      VALUES (?, ?, ?, 'generating', ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
     `).bind(
       adId,
       product.store_id,
       productId,
-      adCopy.primaryText,  // script
-      'static_image',      // video_style
-      adCopy.headline,     // ad_headline
-      adCopy.primaryText,  // ad_primary_text
-      adCopy.description,  // ad_description
-      adCopy.cta,          // ad_cta_button
-      imageUrl,            // thumbnail_url
-      strategy,            // creative_strategy
-      product.title        // title
+      adCopy.headline,      // headline
+      adCopy.primaryText,   // primary_text
+      adCopy.description,   // description
+      adCopy.cta,           // call_to_action
+      imageUrl,             // image_url
+      imagePrompt,          // image_prompt
+      'meta_feed',          // platform
+      'square',             // format
+      strategy              // creative_strategy
     ).run();
 
     return Response.json({
       success: true,
       adId,
-      status: 'inbox',
+      status: 'generating',
       ad: {
         id: adId,
         productId,
         headline: adCopy.headline,
         primaryText: adCopy.primaryText,
         description: adCopy.description,
-        cta: adCopy.cta,
+        callToAction: adCopy.cta,
         imageUrl,
-        strategy,
+        imagePrompt,
+        platform: 'meta_feed',
+        format: 'square',
+        creativeStrategy: strategy,
       },
     });
   } catch (error: any) {

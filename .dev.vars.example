@@ -1,0 +1,38 @@
+# Development environment variables
+# Copy this file to .dev.vars and fill in your keys
+# .dev.vars is gitignored — never commit real keys
+
+# ===========================================
+# AI PROVIDERS
+# ===========================================
+
+# Anthropic Claude (PRIMARY — use for all new AI code)
+ANTHROPIC_API_KEY=your-anthropic-api-key-here
+
+# fal.ai (PRIMARY — image generation via FLUX, Bria, etc.)
+FAL_API_KEY=your-fal-api-key-here
+
+# FashnAI (Virtual try-on for fashion products)
+# Get your key at: https://fashn.ai
+FASHNAI_API_KEY=your-fashnai-api-key-here
+
+# OpenAI (being phased out — do not use for new code)
+OPENAI_API_KEY=your-openai-api-key-here
+
+# Gemini (fallback image generation only)
+GEMINI_API_KEY=your-gemini-api-key-here
+
+# ===========================================
+# R2 STORAGE
+# ===========================================
+
+R2_BUCKET_NAME=jaim-final-assets
+R2_PUBLIC_URL=https://your-r2-public-url-here
+
+# ===========================================
+# PIPELINE
+# ===========================================
+
+# Set to "true" to use mock TikTok/Meta APIs for local development
+# Set to "false" or remove in production to use real platform APIs
+USE_MOCK_PLATFORMS=true

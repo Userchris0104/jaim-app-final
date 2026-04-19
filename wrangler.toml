@@ -17,3 +17,16 @@ bucket_name = "jaim-final-assets"
 # Environment variables
 [vars]
 ENVIRONMENT = "production"
+USE_MOCK_PLATFORMS = "false"  # Set to "true" for local development with mock TikTok/Meta APIs
+
+# Anthropic Claude — ad copy generation
+# ANTHROPIC_API_KEY = "your-key-here"
+# Get key at: console.anthropic.com
+
+# Image Generation (fal.ai)
+# FAL_API_KEY = "your-fal-api-key-here"
+# Get your key at: https://fal.ai/dashboard
+
+# FashnAI — virtual try-on for fashion products
+# FASHNAI_API_KEY = "your-fashnai-api-key-here"
+# Get your key at: https://fashn.ai

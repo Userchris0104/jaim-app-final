@@ -1,7 +1,10 @@
 .DS_Store
 .env
+.dev.vars
 /node_modules/
 
 # React Router
 /.react-router/
 /build/
+
+# Note: .dev.vars.example is NOT ignored — commit it to repo
