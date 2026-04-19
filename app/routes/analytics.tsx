@@ -61,253 +61,177 @@ interface TopAd {
   revenueHistory: number[];
 }
 
-// MOCK: Replace with real analytics API data when available
-// Seeded mock data generator for consistent values
-function seedRandom(seed: string): () => number {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) {
-    h = Math.imul(31, h) + seed.charCodeAt(i) | 0;
-  }
-  return () => {
-    h = Math.imul(h ^ (h >>> 15), h | 1);
-    h ^= h + Math.imul(h ^ (h >>> 7), h | 61);
-    return ((h ^ (h >>> 14)) >>> 0) / 4294967296;
-  };
-}
-
-// MOCK: Replace with real analytics API data filtered by filter type when available
-function getMockDataForFilters(
-  activeProduct: string,
-  activeCategory: string,
-  activePlatform: string,
-  activeAd: string,
-  activeCampaign: string,
-  timeRange: string,
-  products: Product[],
-  ads: Ad[]
-): FilteredData {
-  // Create seed from filter state
-  const seed = `${activeProduct}-${activeCategory}-${activePlatform}-${activeAd}-${activeCampaign}-${timeRange}`;
-  const random = seedRandom(seed);
-
-  // Base values that change based on filters
-  let baseRevenue = 6240;
-  let baseImpressions = 79200;
-  let baseConversions = 146;
-  let baseCpa = 8.22;
-  let baseRoas = 5.2;
-
-  // Adjust based on product filter
-  if (activeProduct) {
-    const product = products.find(p => p.id === activeProduct);
-    if (product?.title.includes("Classic Men's Shirt")) {
-      baseRevenue = 1840;
-      baseImpressions = 22400;
-      baseConversions = 38;
-      baseCpa = 7.10;
-      baseRoas = 4.9;
-    } else if (product?.title.includes("Jacquard") || product?.title.includes("Overshirt")) {
-      baseRevenue = 2100;
-      baseImpressions = 18600;
-      baseConversions = 42;
-      baseCpa = 9.20;
-      baseRoas = 5.1;
-    } else {
-      // Generic product adjustment
-      baseRevenue = Math.floor(800 + random() * 2000);
-      baseImpressions = Math.floor(10000 + random() * 30000);
-      baseConversions = Math.floor(20 + random() * 60);
-      baseCpa = 6 + random() * 5;
-      baseRoas = 3.5 + random() * 2.5;
-    }
-  }
-
-  // Adjust based on category filter
-  if (activeCategory) {
-    if (activeCategory.toLowerCase().includes("shirt")) {
-      baseRevenue = 2840;
-      baseImpressions = 34200;
-      baseConversions = 58;
-      baseCpa = 7.80;
-      baseRoas = 4.6;
-    } else if (activeCategory.toLowerCase().includes("jacket")) {
-      baseRevenue = 3100;
-      baseImpressions = 28400;
-      baseConversions = 62;
-      baseCpa = 9.80;
-      baseRoas = 4.2;
-    } else {
-      baseRevenue = Math.floor(1500 + random() * 2500);
-      baseImpressions = Math.floor(20000 + random() * 25000);
-      baseConversions = Math.floor(35 + random() * 50);
-      baseCpa = 7 + random() * 4;
-      baseRoas = 3.8 + random() * 2;
-    }
-  }
-
-  // Adjust based on platform filter
-  if (activePlatform) {
-    if (activePlatform === "tiktok") {
-      baseRevenue = 6480;
-      baseImpressions = 42000;
-      baseConversions = 82;
-      baseCpa = 7.40;
-      baseRoas = 5.4;
-    } else if (activePlatform === "instagram") {
-      baseRevenue = 4200;
-      baseImpressions = 31000;
-      baseConversions = 56;
-      baseCpa = 8.90;
-      baseRoas = 4.7;
-    } else if (activePlatform === "facebook") {
-      baseRevenue = 3800;
-      baseImpressions = 28000;
-      baseConversions = 48;
-      baseCpa = 9.20;
-      baseRoas = 4.1;
-    }
-  }
-
-  // Adjust based on specific ad filter
-  if (activeAd) {
-    const ad = ads.find(a => a.id === activeAd);
-    if (ad) {
-      // Single ad shows smaller, focused metrics
-      baseRevenue = Math.floor(500 + random() * 1500);
-      baseImpressions = Math.floor(5000 + random() * 15000);
-      baseConversions = Math.floor(8 + random() * 25);
-      baseCpa = 6 + random() * 6;
-      baseRoas = 3 + random() * 3;
-    }
-  }
-
-  // Adjust based on campaign filter
-  if (activeCampaign) {
-    // Campaign shows aggregated metrics for all ads in campaign
-    baseRevenue = Math.floor(2000 + random() * 4000);
-    baseImpressions = Math.floor(25000 + random() * 40000);
-    baseConversions = Math.floor(40 + random() * 80);
-    baseCpa = 7 + random() * 4;
-    baseRoas = 4 + random() * 2.5;
-  }
-
-  // Adjust based on time range
-  const timeMultiplier = timeRange === "7" ? 0.25 : timeRange === "90" ? 3.2 : 1;
-  baseRevenue = Math.floor(baseRevenue * timeMultiplier);
-  baseImpressions = Math.floor(baseImpressions * timeMultiplier);
-  baseConversions = Math.floor(baseConversions * timeMultiplier);
-
-  const spend = Math.floor(baseRevenue / baseRoas);
-  const ctr = (baseConversions / baseImpressions) * 100 * (8 + random() * 4);
-  const clicks = Math.floor(baseImpressions * (ctr / 100));
-
-  // Generate daily data
-  const days = timeRange === "7" ? 7 : timeRange === "90" ? 14 : 7;
-  const dayLabels = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
-  const dailyData = Array.from({ length: days }, (_, i) => ({
-    day: dayLabels[i % 7],
-    value: Math.floor((baseRevenue / days) * (0.6 + random() * 0.8)),
-  })).slice(0, 7);
-
-  // Platform breakdown
-  const platforms = [
-    { platform: "tiktok", color: "#000000" },
-    { platform: "instagram", color: "#E4405F" },
-    { platform: "facebook", color: "#1877F2" },
-  ];
-
-  const platformData = platforms.map((p, i) => {
-    const pRoas = 3.5 + random() * 3;
-    const pRevenue = Math.floor(baseRevenue * (0.2 + random() * 0.4));
-    const pSpend = Math.floor(pRevenue / pRoas);
-    return {
-      platform: p.platform,
-      spend: pSpend,
-      revenue: pRevenue,
-      roas: Math.round(pRoas * 10) / 10,
-      percentage: 0,
-    };
-  });
-
-  // Calculate percentages relative to best
-  const maxRevenue = Math.max(...platformData.map(p => p.revenue));
-  platformData.forEach(p => {
-    p.percentage = Math.round((p.revenue / maxRevenue) * 100);
-  });
-
-  // Sort by revenue descending
-  platformData.sort((a, b) => b.revenue - a.revenue);
-
-  // Top performing ads
-  const adTitles = [
-    "Summer Collection Feature",
-    "New Arrival Spotlight",
-    "Best Seller Showcase",
-  ];
-  const campaigns = ["Summer Sale 2024", "New Arrivals", "Brand Awareness"];
-  const categories = activeCategory || "Apparel";
-  const headlines = [
-    "Stay warm, stay stylish this season",
-    "Discover your new favorite look",
-    "Premium quality. Unbeatable value.",
-  ];
-  const descriptions = [
-    "Premium quality. Perfect for any occasion.",
-    "Shop the latest trends before they sell out.",
-    "Crafted with care. Built to last.",
-  ];
-  const ctas = ["Shop now", "Learn more", "Get yours"];
-  const budgets = ["$85 / day", "$120 / day", "$65 / day"];
-
-  const topAds: TopAd[] = adTitles.map((title, i) => {
-    const adRoas = 4 + random() * 3;
-    const adRevenue = Math.floor(800 + random() * 2000);
-    const adCtr = Math.round((2 + random() * 4) * 100) / 100;
-    // Generate 7 days of revenue history for sparkline
-    const revenueHistory = Array.from({ length: 7 }, () =>
-      Math.floor((adRevenue / 7) * (0.5 + random() * 1))
-    );
-    return {
-      id: `ad_${seed}_${i}`,
-      title: activeProduct
-        ? products.find(p => p.id === activeProduct)?.title || title
-        : title,
-      category: categories,
-      campaign: campaigns[i % campaigns.length],
-      imageUrl: products[i]?.imageUrl || `https://picsum.photos/seed/${seed}${i}/400/500`,
-      platforms: i === 0 ? ["tiktok", "instagram", "facebook"] :
-                 i === 1 ? ["tiktok", "instagram"] : ["facebook"],
-      status: "live",
-      roas: Math.round(adRoas * 10) / 10,
-      revenue: adRevenue,
-      ctr: adCtr,
-      clicks: Math.floor(adRevenue * (0.8 + random() * 0.4)),
-      // MOCK: Replace with real ad detail API call GET /api/ads/:adId when available
-      headline: headlines[i],
-      description: descriptions[i],
-      cta: ctas[i],
-      dailyBudget: budgets[i],
-      revenueHistory,
-    };
-  });
-
-  // Sort by ROAS descending
-  topAds.sort((a, b) => b.roas - a.roas);
-
-  return {
-    revenue: baseRevenue,
-    spend,
-    impressions: baseImpressions,
-    conversions: baseConversions,
-    cpa: Math.round(baseCpa * 100) / 100,
-    roas: Math.round(baseRoas * 10) / 10,
-    ctr: Math.round(ctr * 100) / 100,
-    clicks,
-    dailyData,
-    platformData,
-    topAds,
-  };
-}
+// MOCK: Structured mock data by platform - Replace with real API data when available
+const mockData = {
+  platforms: {
+    tiktok: {
+      spend: 1200,
+      revenue: 6480,
+      roas: 5.4,
+      clicks: 12400,
+      conversions: 82,
+      ctr: 4.8,
+      impressions: 42000,
+      cpa: 7.40,
+      badge: '+12%',
+      dailyRevenue: [935, 853, 1199, 579, 1138, 967, 1133],
+      ads: [
+        {
+          id: 'ad_tiktok_1',
+          title: "Classic Men's Shirt — Organic",
+          category: 'Shirts',
+          campaign: 'Summer 2026',
+          roas: 5.2,
+          revenue: 983,
+          ctr: 4.8,
+          clicks: 2847,
+          platform: 'tiktok',
+          imageUrl: 'https://picsum.photos/seed/tiktok1/400/500',
+          platforms: ['tiktok'],
+          status: 'live',
+          headline: "Stay warm, stay stylish this season",
+          description: "Premium quality. Perfect for any occasion.",
+          cta: "Shop now",
+          dailyBudget: "$85 / day",
+          revenueHistory: [120, 145, 180, 130, 160, 140, 108],
+        },
+        {
+          id: 'ad_tiktok_2',
+          title: "Grey Jacquard Overshirt",
+          category: 'Jackets',
+          campaign: 'New Arrivals',
+          roas: 4.1,
+          revenue: 720,
+          ctr: 3.6,
+          clicks: 1923,
+          platform: 'tiktok',
+          imageUrl: 'https://picsum.photos/seed/tiktok2/400/500',
+          platforms: ['tiktok'],
+          status: 'live',
+          headline: "Discover your new favorite look",
+          description: "Shop the latest trends before they sell out.",
+          cta: "Learn more",
+          dailyBudget: "$65 / day",
+          revenueHistory: [95, 110, 125, 90, 105, 100, 95],
+        },
+      ],
+    },
+    instagram: {
+      spend: 980,
+      revenue: 4704,
+      roas: 4.8,
+      clicks: 9200,
+      conversions: 58,
+      ctr: 3.9,
+      impressions: 28000,
+      cpa: 9.20,
+      badge: '+8%',
+      dailyRevenue: [620, 580, 710, 490, 680, 640, 590],
+      ads: [
+        {
+          id: 'ad_instagram_1',
+          title: "Women's Jacquard Overshirt",
+          category: 'Jackets',
+          campaign: "Mother's Day",
+          roas: 4.7,
+          revenue: 1183,
+          ctr: 3.9,
+          clicks: 2156,
+          platform: 'instagram',
+          imageUrl: 'https://picsum.photos/seed/insta1/400/500',
+          platforms: ['instagram'],
+          status: 'live',
+          headline: "Elevate your everyday style",
+          description: "Crafted with care. Built to last.",
+          cta: "Shop now",
+          dailyBudget: "$120 / day",
+          revenueHistory: [150, 175, 200, 160, 185, 170, 143],
+        },
+        {
+          id: 'ad_instagram_2',
+          title: "Rings Diamond Collection",
+          category: 'Accessories',
+          campaign: "Mother's Day",
+          roas: 4.2,
+          revenue: 890,
+          ctr: 3.2,
+          clicks: 1645,
+          platform: 'instagram',
+          imageUrl: 'https://picsum.photos/seed/insta2/400/500',
+          platforms: ['instagram'],
+          status: 'live',
+          headline: "Make every moment sparkle",
+          description: "Premium quality. Unbeatable value.",
+          cta: "Get yours",
+          dailyBudget: "$95 / day",
+          revenueHistory: [110, 130, 145, 115, 135, 125, 130],
+        },
+      ],
+    },
+    facebook: {
+      spend: 1520,
+      revenue: 6384,
+      roas: 4.2,
+      clicks: 11100,
+      conversions: 62,
+      ctr: 4.2,
+      impressions: 38000,
+      cpa: 11.40,
+      badge: '+5%',
+      dailyRevenue: [880, 790, 1020, 710, 980, 940, 790],
+      ads: [
+        {
+          id: 'ad_facebook_1',
+          title: "Men's 2-Way Zipper Jacket",
+          category: 'Jackets',
+          campaign: 'Summer 2026',
+          roas: 4.2,
+          revenue: 890,
+          ctr: 3.2,
+          clicks: 1834,
+          platform: 'facebook',
+          imageUrl: 'https://picsum.photos/seed/fb1/400/500',
+          platforms: ['facebook'],
+          status: 'live',
+          headline: "Adventure awaits",
+          description: "Built for the bold. Made to last.",
+          cta: "Shop now",
+          dailyBudget: "$110 / day",
+          revenueHistory: [115, 135, 150, 120, 140, 130, 100],
+        },
+        {
+          id: 'ad_facebook_2',
+          title: "Oversized Women's Shirt",
+          category: 'Shirts',
+          campaign: 'New Arrivals',
+          roas: 3.1,
+          revenue: 480,
+          ctr: 2.4,
+          clicks: 1256,
+          platform: 'facebook',
+          imageUrl: 'https://picsum.photos/seed/fb2/400/500',
+          platforms: ['facebook'],
+          status: 'live',
+          headline: "Comfort meets style",
+          description: "Your new everyday essential.",
+          cta: "Learn more",
+          dailyBudget: "$55 / day",
+          revenueHistory: [60, 75, 85, 65, 70, 68, 57],
+        },
+      ],
+    },
+  },
+  categories: {
+    Shirts: { platforms: ['tiktok', 'facebook'] },
+    Jackets: { platforms: ['tiktok', 'instagram', 'facebook'] },
+    Accessories: { platforms: ['instagram'] },
+  },
+  campaigns: {
+    'Summer 2026': { platforms: ['tiktok', 'facebook'] },
+    'New Arrivals': { platforms: ['tiktok', 'facebook'] },
+    "Mother's Day": { platforms: ['instagram'] },
+  },
+};
 
 // Ad Report Slide-over Panel
 function AdReportPanel({
@@ -1215,18 +1139,123 @@ export default function AnalyticsPage() {
   }, [activeProduct, activeCategory, activePlatform, activeStatus, activeAd, activeCampaign]);
 
   // Filtered data based on current filters
-  const filteredData = useMemo(() => {
-    return getMockDataForFilters(
-      activeProduct,
-      activeCategory,
-      activePlatform,
-      activeAd,
-      activeCampaign,
-      timeRange,
-      products,
-      ads
-    );
-  }, [activeProduct, activeCategory, activePlatform, activeAd, activeCampaign, timeRange, products, ads]);
+  const filteredData = useMemo((): FilteredData => {
+    // Step 1: Determine which platforms to include
+    let activePlatforms: string[] = ['tiktok', 'instagram', 'facebook'];
+
+    if (activePlatform && activePlatform !== '') {
+      activePlatforms = [activePlatform];
+    }
+    if (activeCategory && mockData.categories[activeCategory as keyof typeof mockData.categories]) {
+      const categoryPlatforms = mockData.categories[activeCategory as keyof typeof mockData.categories].platforms;
+      activePlatforms = activePlatforms.filter(p => categoryPlatforms.includes(p));
+    }
+    if (activeCampaign) {
+      const campaignName = uniqueCampaigns.find(c => c.id === activeCampaign)?.name || '';
+      if (campaignName && mockData.campaigns[campaignName as keyof typeof mockData.campaigns]) {
+        const campaignPlatforms = mockData.campaigns[campaignName as keyof typeof mockData.campaigns].platforms;
+        activePlatforms = activePlatforms.filter(p => campaignPlatforms.includes(p));
+      }
+    }
+
+    // Handle no matching platforms
+    if (activePlatforms.length === 0) {
+      return {
+        revenue: 0,
+        spend: 0,
+        impressions: 0,
+        conversions: 0,
+        cpa: 0,
+        roas: 0,
+        ctr: 0,
+        clicks: 0,
+        dailyData: Array(7).fill(0).map((_, i) => ({
+          day: ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][i],
+          value: 0,
+        })),
+        platformData: [],
+        topAds: [],
+      };
+    }
+
+    // Step 2: Aggregate stats across active platforms
+    let totalSpend = 0, totalRevenue = 0, totalClicks = 0, totalConversions = 0, totalImpressions = 0;
+    const dailyRevenue: number[] = [0, 0, 0, 0, 0, 0, 0];
+
+    activePlatforms.forEach(platform => {
+      const platformData = mockData.platforms[platform as keyof typeof mockData.platforms];
+      if (platformData) {
+        totalSpend += platformData.spend;
+        totalRevenue += platformData.revenue;
+        totalClicks += platformData.clicks;
+        totalConversions += platformData.conversions;
+        totalImpressions += platformData.impressions;
+        platformData.dailyRevenue.forEach((val, i) => {
+          dailyRevenue[i] += val;
+        });
+      }
+    });
+
+    // Step 3: Calculate derived metrics
+    const roas = totalSpend > 0 ? totalRevenue / totalSpend : 0;
+    const ctr = totalImpressions > 0 ? (totalClicks / totalImpressions) * 100 : 0;
+    const cpa = totalConversions > 0 ? totalSpend / totalConversions : 0;
+
+    // Step 4: Build daily chart data
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    const dailyData = days.map((day, i) => ({
+      day,
+      value: dailyRevenue[i],
+    }));
+
+    // Step 5: Build platform breakdown (only active platforms)
+    const platformData = activePlatforms.map(platform => {
+      const data = mockData.platforms[platform as keyof typeof mockData.platforms];
+      return {
+        platform,
+        spend: data.spend,
+        revenue: data.revenue,
+        roas: data.roas,
+        percentage: totalRevenue > 0 ? (data.revenue / totalRevenue) * 100 : 0,
+      };
+    });
+
+    // Step 6: Get all ads from active platforms and filter
+    let allAds: TopAd[] = [];
+    activePlatforms.forEach(platform => {
+      const platformAds = mockData.platforms[platform as keyof typeof mockData.platforms]?.ads || [];
+      allAds = allAds.concat(platformAds);
+    });
+
+    // Apply additional filters
+    if (activeCategory) {
+      allAds = allAds.filter(ad => ad.category === activeCategory);
+    }
+    if (activeCampaign) {
+      const campaignName = uniqueCampaigns.find(c => c.id === activeCampaign)?.name || '';
+      allAds = allAds.filter(ad => ad.campaign === campaignName);
+    }
+    if (activeAd) {
+      allAds = allAds.filter(ad => ad.id === activeAd);
+    }
+
+    // Sort by ROAS descending
+    allAds.sort((a, b) => b.roas - a.roas);
+
+    return {
+      revenue: totalRevenue,
+      spend: totalSpend,
+      impressions: totalImpressions,
+      conversions: totalConversions,
+      cpa,
+      roas,
+      ctr,
+      clicks: totalClicks,
+      dailyData,
+      platformData,
+      topAds: allAds,
+    };
+  }, [activeProduct, activeCategory, activePlatform, activeAd, activeCampaign, timeRange, products, ads, uniqueCampaigns]);
 
   // Handle product filter (clears category)
   const handleProductChange = (productId: string) => {
@@ -1920,35 +1949,52 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="space-y-4">
-              {filteredData.platformData.map((platform) => (
-                <div key={platform.platform} className="flex items-center gap-3">
-                  <PlatformIcon platform={platform.platform} />
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2 mb-1">
-                      <span className="font-medium text-gray-900 capitalize">{platform.platform}</span>
-                      <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded text-xs font-medium">
-                        +{Math.floor(10 + platform.roas * 3)}%
-                      </span>
-                    </div>
-                    <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-1">
-                      <div
-                        className="h-full rounded-full"
-                        style={{
-                          width: `${platform.percentage}%`,
-                          backgroundColor: platformColors[platform.platform],
-                        }}
-                      />
-                    </div>
-                    <div className="text-[10px] text-gray-400">
-                      ${platform.spend.toLocaleString()} spent · ${platform.revenue.toLocaleString()} revenue
-                    </div>
+              {filteredData.platformData.length === 0 ? (
+                <div className="text-center py-8">
+                  <div className="w-12 h-12 rounded-xl bg-gray-100 flex items-center justify-center mx-auto mb-3">
+                    <svg className="w-6 h-6 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.172 16.172a4 4 0 015.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
                   </div>
-                  <div className="text-right">
-                    <div className="text-sm font-bold text-gray-900">{platform.roas}x</div>
-                    <div className="text-[9px] text-gray-400">ROAS</div>
-                  </div>
+                  <p className="text-sm text-gray-500">No platforms match your filters</p>
+                  <button
+                    onClick={clearAllFilters}
+                    className="mt-2 text-sm text-violet-600 hover:text-violet-700 font-medium"
+                  >
+                    Clear filters
+                  </button>
                 </div>
-              ))}
+              ) : (
+                filteredData.platformData.map((platform) => (
+                  <div key={platform.platform} className="flex items-center gap-3">
+                    <PlatformIcon platform={platform.platform} />
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2 mb-1">
+                        <span className="font-medium text-gray-900 capitalize">{platform.platform}</span>
+                        <span className="px-1.5 py-0.5 bg-emerald-50 text-emerald-600 rounded text-xs font-medium">
+                          +{Math.floor(10 + platform.roas * 3)}%
+                        </span>
+                      </div>
+                      <div className="h-2 bg-gray-100 rounded-full overflow-hidden mb-1">
+                        <div
+                          className="h-full rounded-full"
+                          style={{
+                            width: `${platform.percentage}%`,
+                            backgroundColor: platformColors[platform.platform],
+                          }}
+                        />
+                      </div>
+                      <div className="text-[10px] text-gray-400">
+                        ${platform.spend.toLocaleString()} spent · ${platform.revenue.toLocaleString()} revenue
+                      </div>
+                    </div>
+                    <div className="text-right">
+                      <div className="text-sm font-bold text-gray-900">{platform.roas}x</div>
+                      <div className="text-[9px] text-gray-400">ROAS</div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
           </div>
 
@@ -1957,7 +2003,7 @@ export default function AnalyticsPage() {
             <div className="flex items-start justify-between mb-4">
               <div>
                 <h3 className="font-semibold text-gray-900">What this means for you</h3>
-                <p className="text-sm text-gray-500">AI-generated insights</p>
+                <p className="text-sm text-gray-500">AI-generated insights{activePlatform || activeCategory || activeCampaign ? " for your selection" : ""}</p>
               </div>
               <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center">
                 <svg className="w-4 h-4 text-violet-600" fill="currentColor" viewBox="0 0 24 24">
@@ -1966,33 +2012,60 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            <div className="space-y-3">
-              <div className="flex items-start gap-3">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0" />
-                <p className="text-sm text-gray-600">
-                  Your ads are generating a <span className="font-medium text-gray-900">{filteredData.roas}x return</span> — for every $1 spent, you're making ${filteredData.roas.toFixed(2)} back
-                  {activeProduct ? ` on ${getFilterLabel("product", activeProduct)}` : activeCategory ? ` in ${activeCategory}` : ""}.
-                </p>
+            {filteredData.platformData.length === 0 ? (
+              <div className="text-center py-4">
+                <p className="text-sm text-gray-500">No data available for the selected filters</p>
               </div>
-              <div className="flex items-start gap-3">
-                <span className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
-                <p className="text-sm text-gray-600">
-                  Consider increasing your daily budget by 20% to capture more of this profitable traffic.
-                </p>
+            ) : (
+              <div className="space-y-3">
+                <div className="flex items-start gap-3">
+                  <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0" />
+                  <p className="text-sm text-gray-600">
+                    {activePlatform ? (
+                      <>Your <span className="font-medium text-gray-900 capitalize">{activePlatform}</span> ads are generating a <span className="font-medium text-gray-900">{filteredData.roas.toFixed(1)}x return</span> — for every $1 spent, you're making ${filteredData.roas.toFixed(2)} back.</>
+                    ) : activeCategory ? (
+                      <>Your <span className="font-medium text-gray-900">{activeCategory}</span> ads are generating a <span className="font-medium text-gray-900">{filteredData.roas.toFixed(1)}x return</span> — for every $1 spent, you're making ${filteredData.roas.toFixed(2)} back.</>
+                    ) : (
+                      <>Your ads are generating a <span className="font-medium text-gray-900">{filteredData.roas.toFixed(1)}x return</span> — for every $1 spent, you're making ${filteredData.roas.toFixed(2)} back.</>
+                    )}
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="w-2 h-2 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
+                  <p className="text-sm text-gray-600">
+                    {filteredData.roas >= 4 ? (
+                      <>Consider increasing your daily budget by 20% to capture more of this profitable traffic.</>
+                    ) : filteredData.roas >= 2 ? (
+                      <>Performance is solid. Test new creative variations to potentially improve further.</>
+                    ) : (
+                      <>Consider optimizing your ad creative or targeting to improve returns.</>
+                    )}
+                  </p>
+                </div>
+                <div className="flex items-start gap-3">
+                  <span className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 flex-shrink-0" />
+                  <p className="text-sm text-gray-600">
+                    Your click-through rate is <span className="font-medium text-gray-900">{filteredData.ctr.toFixed(1)}%</span> — {filteredData.ctr > 3 ? "above" : "slightly below"} industry average.
+                  </p>
+                </div>
+                {filteredData.platformData.length > 1 && (
+                  <div className="flex items-start gap-3">
+                    <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0" />
+                    <p className="text-sm text-gray-600">
+                      <span className="font-medium text-gray-900 capitalize">{filteredData.platformData[0]?.platform}</span> is your best performer with {filteredData.platformData[0]?.roas}x ROAS — consider shifting more budget there.
+                    </p>
+                  </div>
+                )}
+                {filteredData.platformData.length === 1 && (
+                  <div className="flex items-start gap-3">
+                    <span className="w-2 h-2 rounded-full bg-violet-500 mt-1.5 flex-shrink-0" />
+                    <p className="text-sm text-gray-600">
+                      Total spend on <span className="font-medium text-gray-900 capitalize">{filteredData.platformData[0]?.platform}</span>: ${filteredData.spend.toLocaleString()} with ${filteredData.revenue.toLocaleString()} in revenue.
+                    </p>
+                  </div>
+                )}
               </div>
-              <div className="flex items-start gap-3">
-                <span className="w-2 h-2 rounded-full bg-amber-500 mt-1.5 flex-shrink-0" />
-                <p className="text-sm text-gray-600">
-                  Your click-through rate is <span className="font-medium text-gray-900">{filteredData.ctr.toFixed(1)}%</span> — {filteredData.ctr > 3 ? "above" : "slightly below"} industry average.
-                </p>
-              </div>
-              <div className="flex items-start gap-3">
-                <span className="w-2 h-2 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0" />
-                <p className="text-sm text-gray-600">
-                  <span className="font-medium text-gray-900 capitalize">{filteredData.platformData[0]?.platform || "TikTok"}</span> is your best performer with {filteredData.platformData[0]?.roas || 5.2}x ROAS — consider shifting more budget there.
-                </p>
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </div>
@@ -2016,104 +2089,122 @@ export default function AnalyticsPage() {
           </a>
         </div>
 
-        <div className="grid grid-cols-3 gap-4">
-          {filteredData.topAds.map((ad, index) => {
-            const maxRoas = Math.max(...filteredData.topAds.map(a => a.roas));
-            const roasPercentage = (ad.roas / maxRoas) * 100;
+        {filteredData.topAds.length === 0 ? (
+          <div className="text-center py-12">
+            <div className="w-16 h-16 rounded-2xl bg-gray-100 flex items-center justify-center mx-auto mb-4">
+              <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+              </svg>
+            </div>
+            <h4 className="text-gray-900 font-medium mb-1">No ads match your filters</h4>
+            <p className="text-sm text-gray-500 mb-4">Try adjusting your filters to see more ads</p>
+            <button
+              onClick={clearAllFilters}
+              className="px-4 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition"
+            >
+              Clear all filters
+            </button>
+          </div>
+        ) : (
+          <div className="grid grid-cols-3 gap-4">
+            {filteredData.topAds.slice(0, 3).map((ad, index) => {
+              const maxRoas = Math.max(...filteredData.topAds.map(a => a.roas));
+              const roasPercentage = (ad.roas / maxRoas) * 100;
 
-            return (
-              <div key={ad.id} className="bg-gray-50 rounded-xl overflow-hidden">
-                {/* Image Area */}
-                <div className="relative aspect-[4/5] bg-gray-200">
-                  <img
-                    src={ad.imageUrl}
-                    alt={ad.title}
-                    className="w-full h-full object-cover"
-                    onError={(e) => {
-                      (e.target as HTMLImageElement).src = `https://picsum.photos/seed/${ad.id}/400/500`;
-                    }}
-                  />
-
-                  {/* Rank Badge */}
-                  <div
-                    className={`absolute top-3 left-3 w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
-                      index === 0
-                        ? "bg-yellow-100 text-yellow-800"
-                        : index === 1
-                        ? "bg-slate-100 text-slate-600"
-                        : "bg-pink-100 text-pink-800"
-                    }`}
-                  >
-                    #{index + 1}
-                  </div>
-
-                  {/* Platform Icons */}
-                  <div className="absolute top-3 right-3 flex gap-1">
-                    {ad.platforms.map((platform) => (
-                      <PlatformIcon key={platform} platform={platform} size={24} />
-                    ))}
-                  </div>
-
-                  {/* Status Badge */}
-                  <div className="absolute bottom-3 right-3">
-                    <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-md text-xs font-medium capitalize">
-                      {ad.status}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Ad Info */}
-                <div className="p-4">
-                  <h4 className="font-medium text-gray-900 truncate mb-1">{ad.title}</h4>
-                  <p className="text-[10px] text-gray-400 mb-3">
-                    {ad.category} · {ad.campaign}
-                  </p>
-
-                  {/* Performance Bar */}
-                  <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-3">
-                    <div
-                      className="h-full bg-violet-600 rounded-full"
-                      style={{ width: `${roasPercentage}%` }}
+              return (
+                <div key={ad.id} className="bg-gray-50 rounded-xl overflow-hidden">
+                  {/* Image Area */}
+                  <div className="relative aspect-[4/5] bg-gray-200">
+                    <img
+                      src={ad.imageUrl}
+                      alt={ad.title}
+                      className="w-full h-full object-cover"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://picsum.photos/seed/${ad.id}/400/500`;
+                      }}
                     />
+
+                    {/* Rank Badge */}
+                    <div
+                      className={`absolute top-3 left-3 w-8 h-8 rounded-lg flex items-center justify-center font-bold text-sm ${
+                        index === 0
+                          ? "bg-yellow-100 text-yellow-800"
+                          : index === 1
+                          ? "bg-slate-100 text-slate-600"
+                          : "bg-pink-100 text-pink-800"
+                      }`}
+                    >
+                      #{index + 1}
+                    </div>
+
+                    {/* Platform Icons */}
+                    <div className="absolute top-3 right-3 flex gap-1">
+                      {ad.platforms.map((platform) => (
+                        <PlatformIcon key={platform} platform={platform} size={24} />
+                      ))}
+                    </div>
+
+                    {/* Status Badge */}
+                    <div className="absolute bottom-3 right-3">
+                      <span className="px-2 py-1 bg-emerald-100 text-emerald-700 rounded-md text-xs font-medium capitalize">
+                        {ad.status}
+                      </span>
+                    </div>
                   </div>
 
-                  {/* Stats */}
-                  <div className="grid grid-cols-3 gap-2 text-center">
-                    <div>
-                      <div className={`text-sm font-bold ${ad.roas >= 3 ? "text-emerald-600" : "text-gray-900"}`}>
-                        {ad.roas}x
-                      </div>
-                      <div className="text-[10px] text-gray-400">ROAS</div>
+                  {/* Ad Info */}
+                  <div className="p-4">
+                    <h4 className="font-medium text-gray-900 truncate mb-1">{ad.title}</h4>
+                    <p className="text-[10px] text-gray-400 mb-3">
+                      {ad.category} · {ad.campaign}
+                    </p>
+
+                    {/* Performance Bar */}
+                    <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden mb-3">
+                      <div
+                        className="h-full bg-violet-600 rounded-full"
+                        style={{ width: `${roasPercentage}%` }}
+                      />
                     </div>
-                    <div>
-                      <div className="text-sm font-bold text-gray-900">
-                        ${ad.revenue.toLocaleString()}
+
+                    {/* Stats */}
+                    <div className="grid grid-cols-3 gap-2 text-center">
+                      <div>
+                        <div className={`text-sm font-bold ${ad.roas >= 3 ? "text-emerald-600" : "text-gray-900"}`}>
+                          {ad.roas}x
+                        </div>
+                        <div className="text-[10px] text-gray-400">ROAS</div>
                       </div>
-                      <div className="text-[10px] text-gray-400">Revenue</div>
-                    </div>
-                    <div>
-                      <div className="text-sm font-bold text-gray-900">
-                        {ad.ctr}%
+                      <div>
+                        <div className="text-sm font-bold text-gray-900">
+                          ${ad.revenue.toLocaleString()}
+                        </div>
+                        <div className="text-[10px] text-gray-400">Revenue</div>
                       </div>
-                      <div className="text-[10px] text-gray-400">CTR</div>
+                      <div>
+                        <div className="text-sm font-bold text-gray-900">
+                          {ad.ctr}%
+                        </div>
+                        <div className="text-[10px] text-gray-400">CTR</div>
+                      </div>
                     </div>
                   </div>
-                </div>
 
-                {/* Card Footer */}
-                <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
-                  <span className="text-[10px] text-gray-400">{ad.campaign}</span>
-                  <button
-                    onClick={() => openPanel(ad, index + 1)}
-                    className="text-xs text-violet-600 hover:text-violet-700 font-medium"
-                  >
-                    View report →
-                  </button>
+                  {/* Card Footer */}
+                  <div className="px-4 py-3 border-t border-gray-200 flex items-center justify-between">
+                    <span className="text-[10px] text-gray-400">{ad.campaign}</span>
+                    <button
+                      onClick={() => openPanel(ad, index + 1)}
+                      className="text-xs text-violet-600 hover:text-violet-700 font-medium"
+                    >
+                      View report →
+                    </button>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
-        </div>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Ad Report Slide-over Panel */}
