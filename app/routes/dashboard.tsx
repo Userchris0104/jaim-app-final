@@ -422,7 +422,9 @@ export default function DashboardPage() {
         <div className="grid grid-cols-12 gap-6">
           {/* ROAS Hero Card */}
           <div className="col-span-12 lg:col-span-5">
-            <div className="bg-gradient-to-br from-violet-600 via-indigo-600 to-purple-700 rounded-3xl p-8 shadow-xl shadow-violet-500/20 relative overflow-hidden h-full">
+            <div
+              onClick={() => navigate("/analytics")}
+              className="bg-gradient-to-br from-violet-600 via-indigo-600 to-purple-700 rounded-3xl p-8 shadow-xl shadow-violet-500/20 relative overflow-hidden h-full cursor-pointer hover:shadow-2xl hover:shadow-violet-500/30 transition-all">
               {/* Animated background */}
               <div className="absolute inset-0 opacity-10">
                 <div className="absolute top-0 right-0 w-40 h-40 bg-white rounded-full blur-3xl transform translate-x-10 -translate-y-10" />
@@ -461,7 +463,9 @@ export default function DashboardPage() {
           {/* Metric Cards */}
           <div className="col-span-12 lg:col-span-7 grid grid-cols-1 sm:grid-cols-3 gap-4">
             {/* Revenue Card */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition-all overflow-hidden flex flex-col">
+            <div
+              onClick={() => navigate("/analytics")}
+              className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition-all overflow-hidden flex flex-col cursor-pointer">
               <div className="p-5 flex-1">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
@@ -481,7 +485,9 @@ export default function DashboardPage() {
             </div>
 
             {/* Conversions Card */}
-            <div className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition-all overflow-hidden flex flex-col">
+            <div
+              onClick={() => navigate("/analytics")}
+              className="bg-white rounded-2xl border border-gray-100 shadow-sm hover:shadow-lg transition-all overflow-hidden flex flex-col cursor-pointer">
               <div className="p-5 flex-1">
                 <div className="flex items-center justify-between mb-2">
                   <div className="flex items-center gap-2">
@@ -501,7 +507,9 @@ export default function DashboardPage() {
             </div>
 
             {/* Active Ads Card */}
-            <div className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-lg transition-all">
+            <div
+              onClick={() => navigate("/ads")}
+              className="bg-white rounded-2xl p-5 border border-gray-100 shadow-sm hover:shadow-lg transition-all cursor-pointer">
               <div className="flex items-center justify-between mb-2">
                 <div className="flex items-center gap-2">
                   <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center">
