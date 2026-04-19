@@ -649,65 +649,68 @@ function CampaignRow({
 
   return (
     <div className="bg-white rounded-xl border border-gray-100 p-4 hover:shadow-md hover:border-violet-200 transition-all">
-      <div className="flex items-center gap-4">
-        {/* Platform Icon */}
-        <div className="flex-shrink-0">
+      <div className="flex items-center">
+        {/* Platform Icon - fixed width */}
+        <div className="w-12 flex-shrink-0">
           <PlatformIcon platform={campaign.platform} />
         </div>
 
         {/* Campaign Info - fixed width for alignment */}
-        <div className="w-64 min-w-0 flex-shrink-0">
-          <div className="flex items-center gap-2 mb-1">
-            <h4 className="font-semibold text-gray-900 truncate">{campaign.name}</h4>
-            <StatusBadge status={campaign.status} />
-          </div>
+        <div className="w-56 flex-shrink-0 pr-4">
+          <h4 className="font-semibold text-gray-900 truncate mb-1">{campaign.name}</h4>
           <p className="text-sm text-gray-500 truncate">
             {campaign.objective} · {dateRange}
           </p>
         </div>
 
+        {/* Status Badge - fixed width */}
+        <div className="w-20 flex-shrink-0">
+          <StatusBadge status={campaign.status} />
+        </div>
+
         {/* Stats - fixed width columns for alignment */}
-        <div className="hidden lg:flex flex-1 justify-end">
-          <div className="grid grid-cols-5 text-center" style={{ width: '400px' }}>
-            <div className="w-20">
-              <p className="text-xs text-gray-500 mb-0.5">Spend</p>
-              <p className="text-sm font-semibold text-gray-900">${campaign.spend.toLocaleString()}</p>
-            </div>
-            <div className="w-20">
-              <p className="text-xs text-gray-500 mb-0.5">Revenue</p>
-              <p className="text-sm font-semibold text-gray-900">${campaign.revenue.toLocaleString()}</p>
-            </div>
-            <div className="w-20">
-              <p className="text-xs text-gray-500 mb-0.5">ROAS</p>
-              <p className={`text-sm font-semibold ${roasColor}`}>{campaign.roas.toFixed(1)}x</p>
-            </div>
-            <div className="w-20">
-              <p className="text-xs text-gray-500 mb-0.5">Clicks</p>
-              <p className="text-sm font-semibold text-gray-900">{campaign.clicks.toLocaleString()}</p>
-            </div>
-            <div className="w-20">
-              <p className="text-xs text-gray-500 mb-0.5">CTR</p>
-              <p className="text-sm font-semibold text-gray-900">{campaign.ctr.toFixed(2)}%</p>
-            </div>
+        <div className="hidden lg:grid grid-cols-5 flex-shrink-0" style={{ width: '400px' }}>
+          <div className="text-center">
+            <p className="text-xs text-gray-500 mb-0.5">Spend</p>
+            <p className="text-sm font-semibold text-gray-900">${campaign.spend.toLocaleString()}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-xs text-gray-500 mb-0.5">Revenue</p>
+            <p className="text-sm font-semibold text-gray-900">${campaign.revenue.toLocaleString()}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-xs text-gray-500 mb-0.5">ROAS</p>
+            <p className={`text-sm font-semibold ${roasColor}`}>{campaign.roas.toFixed(1)}x</p>
+          </div>
+          <div className="text-center">
+            <p className="text-xs text-gray-500 mb-0.5">Clicks</p>
+            <p className="text-sm font-semibold text-gray-900">{campaign.clicks.toLocaleString()}</p>
+          </div>
+          <div className="text-center">
+            <p className="text-xs text-gray-500 mb-0.5">CTR</p>
+            <p className="text-sm font-semibold text-gray-900">{campaign.ctr.toFixed(2)}%</p>
           </div>
         </div>
 
-        {/* Actions */}
-        <div className="flex items-center gap-2">
+        {/* Actions - fixed width */}
+        <div className="w-40 flex-shrink-0 flex items-center justify-end gap-2">
           <button
             onClick={onView}
             className="px-3 py-1.5 text-sm font-medium text-violet-600 hover:bg-violet-50 rounded-lg transition"
           >
             View
           </button>
-          {campaign.status !== "ended" && (
-            <button
-              onClick={onTogglePause}
-              className="px-3 py-1.5 text-sm font-medium text-gray-600 hover:bg-gray-100 rounded-lg transition"
-            >
-              {campaign.status === "paused" ? "Resume" : "Pause"}
-            </button>
-          )}
+          <button
+            onClick={onTogglePause}
+            className={`w-16 py-1.5 text-sm font-medium rounded-lg transition ${
+              campaign.status === "ended"
+                ? "text-gray-300 cursor-not-allowed"
+                : "text-gray-600 hover:bg-gray-100"
+            }`}
+            disabled={campaign.status === "ended"}
+          >
+            {campaign.status === "paused" ? "Resume" : "Pause"}
+          </button>
           <div className="relative">
             <button
               onClick={() => setShowMenu(!showMenu)}
