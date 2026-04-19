@@ -304,6 +304,58 @@ function ProductModal({
   );
 }
 
+// Price range options
+const PRICE_RANGES = [
+  { label: "All prices", value: "all", min: 0, max: Infinity },
+  { label: "Under $50", value: "under-50", min: 0, max: 49.99 },
+  { label: "$50–$100", value: "50-100", min: 50, max: 100 },
+  { label: "$100–$200", value: "100-200", min: 100, max: 200 },
+  { label: "$200+", value: "200-plus", min: 200, max: Infinity },
+];
+
+// Gender options
+const GENDER_OPTIONS = [
+  { label: "All Genders", value: "all" },
+  { label: "Men", value: "men" },
+  { label: "Women", value: "women" },
+  { label: "Unisex", value: "unisex" },
+];
+
+// Detect gender from product tags and title
+function detectGender(product: Product): "men" | "women" | "unisex" {
+  const menKeywords = ["men", "male", "mens", "man"];
+  const womenKeywords = ["women", "female", "womens", "woman"];
+
+  // Parse tags into lowercase array
+  const tags = product.tags
+    ? product.tags.split(",").map((t) => t.trim().toLowerCase())
+    : [];
+
+  // Check tags first
+  const hasMenTag = tags.some((tag) =>
+    menKeywords.some((kw) => tag === kw || tag.includes(kw))
+  );
+  const hasWomenTag = tags.some((tag) =>
+    womenKeywords.some((kw) => tag === kw || tag.includes(kw))
+  );
+
+  if (hasMenTag && hasWomenTag) return "unisex";
+  if (hasMenTag) return "men";
+  if (hasWomenTag) return "women";
+
+  // Fallback to title check
+  const titleLower = product.title.toLowerCase();
+  const hasMenTitle = menKeywords.some((kw) => titleLower.includes(kw));
+  const hasWomenTitle = womenKeywords.some((kw) => titleLower.includes(kw));
+
+  if (hasMenTitle && hasWomenTitle) return "unisex";
+  if (hasMenTitle) return "men";
+  if (hasWomenTitle) return "women";
+
+  // Default to unisex if nothing found
+  return "unisex";
+}
+
 export default function ProductsPage() {
   const [searchParams] = useSearchParams();
   const [data, setData] = useState<ProductsData | null>(null);
@@ -314,6 +366,12 @@ export default function ProductsPage() {
   const [shopInput, setShopInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [successMessage, setSuccessMessage] = useState<string | null>(null);
+
+  // Filter state
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
+  const [selectedGender, setSelectedGender] = useState<string>("all");
+  const [selectedPriceRange, setSelectedPriceRange] = useState<string>("all");
+  const [searchQuery, setSearchQuery] = useState<string>("");
 
   // Check for URL params (from OAuth callback) and auto-sync
   useEffect(() => {
@@ -463,6 +521,64 @@ export default function ProductsPage() {
       return formatter.format(min);
     }
     return `${formatter.format(min)} - ${formatter.format(max)}`;
+  };
+
+  // Extract unique categories from products with counts
+  const categories = data?.products
+    ? Array.from(
+        data.products.reduce((acc, product) => {
+          const type = product.productType || "Uncategorized";
+          acc.set(type, (acc.get(type) || 0) + 1);
+          return acc;
+        }, new Map<string, number>())
+      ).sort((a, b) => a[0].localeCompare(b[0]))
+    : [];
+
+  // Filter products based on all active filters
+  const filteredProducts = data?.products?.filter((product) => {
+    // Category filter
+    if (selectedCategory !== "all") {
+      const productCategory = product.productType || "Uncategorized";
+      if (productCategory !== selectedCategory) return false;
+    }
+
+    // Gender filter
+    if (selectedGender !== "all") {
+      const productGender = detectGender(product);
+      if (productGender !== selectedGender) return false;
+    }
+
+    // Price range filter
+    if (selectedPriceRange !== "all") {
+      const priceRange = PRICE_RANGES.find((r) => r.value === selectedPriceRange);
+      if (priceRange) {
+        const price = product.priceMin ?? 0;
+        if (price < priceRange.min || price > priceRange.max) return false;
+      }
+    }
+
+    // Search filter
+    if (searchQuery.trim()) {
+      const query = searchQuery.toLowerCase().trim();
+      if (!product.title.toLowerCase().includes(query)) return false;
+    }
+
+    return true;
+  }) ?? [];
+
+  // Check if any filter is active
+  const hasActiveFilters =
+    selectedCategory !== "all" ||
+    selectedGender !== "all" ||
+    selectedPriceRange !== "all" ||
+    searchQuery.trim() !== "";
+
+  // Clear all filters
+  const clearAllFilters = () => {
+    setSelectedCategory("all");
+    setSelectedGender("all");
+    setSelectedPriceRange("all");
+    setSearchQuery("");
   };
 
   if (loading) {
@@ -620,74 +736,229 @@ export default function ProductsPage() {
               </button>
             </div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
-              {data.products.map((product) => (
-                <div
-                  key={product.id}
-                  onClick={() => setSelectedProduct(product)}
-                  className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-violet-200 transition-all group cursor-pointer"
-                >
-                  {/* Product Image */}
-                  <div className="aspect-square relative bg-gray-100">
-                    {product.imageUrl ? (
-                      <img
-                        src={product.imageUrl}
-                        alt={product.title}
-                        className="w-full h-full object-cover"
-                      />
-                    ) : (
-                      <div className="w-full h-full flex items-center justify-center text-gray-400">
-                        <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                        </svg>
-                      </div>
-                    )}
+            <>
+              {/* Filter Bar */}
+              <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-6 space-y-4">
+                {/* Row 1: Category Pills */}
+                <div className="flex items-center gap-2 overflow-x-auto pb-2 -mb-2 scrollbar-hide">
+                  <button
+                    onClick={() => setSelectedCategory("all")}
+                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                      selectedCategory === "all"
+                        ? "bg-violet-600 text-white"
+                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                    }`}
+                  >
+                    All ({data.total})
+                  </button>
+                  {categories.map(([category, count]) => (
+                    <button
+                      key={category}
+                      onClick={() => setSelectedCategory(category)}
+                      className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                        selectedCategory === category
+                          ? "bg-violet-600 text-white"
+                          : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                      }`}
+                    >
+                      {category} ({count})
+                    </button>
+                  ))}
+                </div>
 
-                    {/* Status Badge */}
-                    <div className={`absolute top-3 right-3 px-2 py-1 rounded-lg text-xs font-bold ${
-                      product.status === "active"
-                        ? "bg-emerald-500 text-white"
-                        : "bg-gray-500 text-white"
-                    }`}>
-                      {product.status}
-                    </div>
-
-                    {/* Quick Actions Overlay */}
-                    <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
-                      <button className="px-4 py-2 bg-white text-gray-900 rounded-lg font-medium text-sm hover:bg-gray-100 transition">
-                        Generate Ad
-                      </button>
-                    </div>
+                {/* Row 2: Attribute Filters + Search */}
+                <div className="flex flex-wrap items-center gap-3">
+                  {/* Gender Filter */}
+                  <div className="relative">
+                    <select
+                      value={selectedGender}
+                      onChange={(e) => setSelectedGender(e.target.value)}
+                      className={`appearance-none pl-4 pr-10 py-2 rounded-xl text-sm font-medium border transition-colors cursor-pointer ${
+                        selectedGender !== "all"
+                          ? "bg-violet-50 border-violet-200 text-violet-700"
+                          : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                      }`}
+                    >
+                      {GENDER_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <svg
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
                   </div>
 
-                  {/* Product Info */}
-                  <div className="p-4">
-                    <h4 className="font-semibold text-gray-900 mb-1 truncate" title={product.title}>
-                      {product.title}
-                    </h4>
-                    {product.vendor && (
-                      <p className="text-xs text-gray-500 mb-1">{product.vendor}</p>
+                  {/* Price Range Filter */}
+                  <div className="relative">
+                    <select
+                      value={selectedPriceRange}
+                      onChange={(e) => setSelectedPriceRange(e.target.value)}
+                      className={`appearance-none pl-4 pr-10 py-2 rounded-xl text-sm font-medium border transition-colors cursor-pointer ${
+                        selectedPriceRange !== "all"
+                          ? "bg-violet-50 border-violet-200 text-violet-700"
+                          : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                      }`}
+                    >
+                      {PRICE_RANGES.map((range) => (
+                        <option key={range.value} value={range.value}>
+                          {range.label}
+                        </option>
+                      ))}
+                    </select>
+                    <svg
+                      className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </div>
+
+                  {/* Spacer */}
+                  <div className="flex-1" />
+
+                  {/* Search Input */}
+                  <div className="relative w-full sm:w-64">
+                    <svg
+                      className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                    <input
+                      type="text"
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search products..."
+                      className="w-full pl-10 pr-10 py-2 rounded-xl text-sm border border-gray-200 bg-gray-50 focus:bg-white focus:outline-none focus:ring-2 focus:ring-violet-500 focus:border-transparent transition-all"
+                    />
+                    {searchQuery && (
+                      <button
+                        onClick={() => setSearchQuery("")}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 w-5 h-5 rounded-full bg-gray-300 hover:bg-gray-400 flex items-center justify-center transition-colors"
+                      >
+                        <svg className="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
                     )}
-                    {product.description && (
-                      <p
-                        className="text-xs text-gray-400 mb-2 line-clamp-2"
-                        dangerouslySetInnerHTML={{
-                          __html: product.description.replace(/<[^>]*>/g, '').slice(0, 100) + (product.description.length > 100 ? '...' : '')
-                        }}
-                      />
-                    )}
-                    <div className="flex items-center justify-between">
-                      <span className="text-violet-600 font-bold">
-                        {formatPrice(product.priceMin, product.priceMax, data.store?.currency)}
-                      </span>
-                      <span className="text-xs text-gray-500">
-                        {product.inventory !== undefined ? `${product.inventory} in stock` : ""}
-                      </span>
-                    </div>
                   </div>
                 </div>
-              ))}
-            </div>
+
+                {/* Result Count */}
+                <div className="flex items-center justify-between text-sm border-t border-gray-100 pt-3 -mb-1">
+                  <span className="text-gray-500">
+                    Showing {filteredProducts.length} of {data.total} products
+                  </span>
+                  {hasActiveFilters && (
+                    <button
+                      onClick={clearAllFilters}
+                      className="text-violet-600 hover:text-violet-700 font-medium"
+                    >
+                      Clear all filters
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Empty State - No Matching Products */}
+              {filteredProducts.length === 0 ? (
+                <div className="bg-white rounded-2xl border border-gray-200 p-12 text-center">
+                  <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+                    <svg className="w-8 h-8 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </div>
+                  <h3 className="text-lg font-semibold text-gray-900 mb-2">No products match your filters</h3>
+                  <p className="text-gray-500 mb-4">Try adjusting your filters to find what you're looking for.</p>
+                  <button
+                    onClick={clearAllFilters}
+                    className="px-5 py-2 bg-violet-600 text-white rounded-xl font-medium hover:bg-violet-700 transition"
+                  >
+                    Clear filters
+                  </button>
+                </div>
+              ) : (
+                <div className="grid grid-cols-1 md:grid-cols-3 lg:grid-cols-4 gap-6">
+                  {filteredProducts.map((product) => (
+                    <div
+                      key={product.id}
+                      onClick={() => setSelectedProduct(product)}
+                      className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-violet-200 transition-all group cursor-pointer"
+                    >
+                      {/* Product Image */}
+                      <div className="aspect-square relative bg-gray-100">
+                        {product.imageUrl ? (
+                          <img
+                            src={product.imageUrl}
+                            alt={product.title}
+                            className="w-full h-full object-cover"
+                          />
+                        ) : (
+                          <div className="w-full h-full flex items-center justify-center text-gray-400">
+                            <svg className="w-16 h-16" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                            </svg>
+                          </div>
+                        )}
+
+                        {/* Status Badge */}
+                        <div className={`absolute top-3 right-3 px-2 py-1 rounded-lg text-xs font-bold ${
+                          product.status === "active"
+                            ? "bg-emerald-500 text-white"
+                            : "bg-gray-500 text-white"
+                        }`}>
+                          {product.status}
+                        </div>
+
+                        {/* Quick Actions Overlay */}
+                        <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-2">
+                          <button className="px-4 py-2 bg-white text-gray-900 rounded-lg font-medium text-sm hover:bg-gray-100 transition">
+                            Generate Ad
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Product Info */}
+                      <div className="p-4">
+                        <h4 className="font-semibold text-gray-900 mb-1 truncate" title={product.title}>
+                          {product.title}
+                        </h4>
+                        {product.vendor && (
+                          <p className="text-xs text-gray-500 mb-1">{product.vendor}</p>
+                        )}
+                        {product.description && (
+                          <p
+                            className="text-xs text-gray-400 mb-2 line-clamp-2"
+                            dangerouslySetInnerHTML={{
+                              __html: product.description.replace(/<[^>]*>/g, '').slice(0, 100) + (product.description.length > 100 ? '...' : '')
+                            }}
+                          />
+                        )}
+                        <div className="flex items-center justify-between">
+                          <span className="text-violet-600 font-bold">
+                            {formatPrice(product.priceMin, product.priceMax, data.store?.currency)}
+                          </span>
+                          <span className="text-xs text-gray-500">
+                            {product.inventory !== undefined ? `${product.inventory} in stock` : ""}
+                          </span>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
           )}
         </>
       )}
