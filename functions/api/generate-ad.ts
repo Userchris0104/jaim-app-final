@@ -99,33 +99,64 @@ async function generateAdCopy(
             max_tokens: 1000,
             messages: [{
               role: 'user',
-              content: `You are an expert performance marketing copywriter specialising in ecommerce social media ads. You write copy that is specific, benefit-focused, and native to each platform. Return ONLY valid JSON — no preamble, no markdown backticks, no explanation whatsoever.
+              content: `You are a senior performance marketing copywriter with 10 years experience writing viral ecommerce ads for TikTok, Instagram, and Facebook.
 
-Write ad copy for this product. Return ONLY this exact JSON structure:
+Your copy is known for being:
+- Specific to the actual product — never generic
+- Emotionally resonant — speaks to how the customer FEELS wearing/using it, not just what it is
+- Platform-native — TikTok copy feels like TikTok, not a billboard
+- Conversion-focused — every word earns its place
+
+STRICT RULES — violating these makes the copy bad:
+1. NEVER paraphrase the product description
+2. NEVER start with the product name
+3. NEVER use: amazing, incredible, perfect, high quality, best in class, game-changing, premium, luxury, elevate, discover
+4. The headline must be a hook — a question, a bold claim, or an unexpected angle
+5. Primary text must speak to the customer's desire or problem — not the product's features
+6. Write AS IF you already know this product sells well — confident, not pushy
+7. EVERY field must be a COMPLETE sentence or phrase — never cut off mid-word
+
+Return ONLY valid JSON with no preamble:
 {
-  "headline": "max 40 chars",
-  "primaryText": "max 125 chars",
-  "description": "max 90 chars",
-  "cta": "one of: Shop Now, Learn More, Get Yours, Buy Now, Discover, Order Now"
+  "headline": "max 40 chars — hook, not description",
+  "primaryText": "max 125 chars — desire/problem focused",
+  "description": "max 90 chars — social proof or urgency",
+  "cta": "Shop Now"
 }
 
-Product: ${product.title}
-Category: ${product.product_type || 'General'}
-Description: ${product.description?.replace(/<[^>]*>/g, '').slice(0, 300) || ''}
-Price: $${product.price || 0}
-Brand: ${product.vendor || 'Unknown'}
-Brand mood: ${brandStyle?.mood || 'professional'}
+---
 
-CRITICAL RULES:
-- EVERY field must be a COMPLETE sentence or phrase. NEVER cut off mid-word or mid-sentence.
-- If approaching the character limit, write a shorter complete sentence instead.
-- headline: Punchy, specific, creates curiosity or urgency (max 40 chars)
-- primaryText: Benefit-focused, must be a complete thought (max 125 chars)
-- description: Supporting detail, complete sentence (max 90 chars)
-- Reference specific product details from above
-- Never use: high quality, amazing, incredible, perfect, best in class, game-changing
-- Match the brand mood: ${brandStyle?.mood || 'professional'}
-- Be specific — generic copy is not acceptable`
+PRODUCT TO WRITE COPY FOR:
+
+Name: ${product.title}
+Category: ${product.product_type || 'Fashion'}
+Price: $${product.price || 0}
+Brand: ${product.vendor || 'Independent brand'}
+Brand mood: ${brandStyle?.mood || 'contemporary'}
+Brand tone: ${brandStyle?.visualTone || 'modern'}
+
+Raw product description (use for CONTEXT ONLY, do not paraphrase this):
+${product.description?.replace(/<[^>]*>/g, '').slice(0, 400) || 'No description provided'}
+
+---
+
+COPY DIRECTION:
+Think about WHO buys this product and WHY. What problem does it solve? What desire does it fulfil? What would make someone stop scrolling and click?
+
+Write for someone who has never heard of this product but would love it if they saw it.
+
+Examples of BAD headlines (do not write like this):
+- "Discover our Classic Men's Shirt"
+- "High quality organic cotton shirt"
+- "Shop our latest collection"
+
+Examples of GOOD headlines for a men's shirt:
+- "The shirt you'll wear everywhere"
+- "Why is everyone buying this shirt?"
+- "Finally. A shirt that fits right"
+- "100% organic. Zero compromises"
+
+Be bold and creative. Surprise me with an angle I haven't seen before.`
             }]
           })
         }
