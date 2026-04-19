@@ -642,9 +642,56 @@ function AdReportPanel({
               </div>
             </div>
           </div>
+
+          {/* SECTION 5 — AI Insights */}
+          <div className="bg-gradient-to-br from-violet-50 to-violet-100/50 rounded-xl p-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="w-6 h-6 rounded-lg bg-violet-200 flex items-center justify-center">
+                <svg className="w-3.5 h-3.5 text-violet-700" fill="currentColor" viewBox="0 0 24 24">
+                  <path d="M13 10V3L4 14h7v7l9-11h-7z" />
+                </svg>
+              </div>
+              <h3 className="text-[13px] font-bold text-violet-900">Why this ad is working</h3>
+            </div>
+            <div className="space-y-2.5">
+              {/* MOCK: Replace with real AI-generated insights from API when available */}
+              <div className="flex items-start gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-500 mt-1.5 flex-shrink-0" />
+                <p className="text-xs text-violet-800 leading-relaxed">
+                  <span className="font-medium">Strong visual appeal</span> — The product image stands out in feeds with clear, high-contrast visuals that stop scrollers.
+                </p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-500 mt-1.5 flex-shrink-0" />
+                <p className="text-xs text-violet-800 leading-relaxed">
+                  <span className="font-medium">Compelling headline</span> — "{ad.headline}" creates urgency and speaks directly to customer desires.
+                </p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-500 mt-1.5 flex-shrink-0" />
+                <p className="text-xs text-violet-800 leading-relaxed">
+                  <span className="font-medium">Right audience targeting</span> — This ad resonates with {ad.platforms.length > 1 ? `${ad.platforms.slice(0, -1).join(", ")} and ${ad.platforms.slice(-1)}` : ad.platforms[0]} users who are {ad.roas >= 4 ? "highly" : "actively"} engaged with similar products.
+                </p>
+              </div>
+              <div className="flex items-start gap-2">
+                <span className="w-1.5 h-1.5 rounded-full bg-violet-500 mt-1.5 flex-shrink-0" />
+                <p className="text-xs text-violet-800 leading-relaxed">
+                  <span className="font-medium">{ad.roas >= 4 ? "Excellent" : ad.roas >= 3 ? "Strong" : "Good"} conversion rate</span> — At {ad.ctr}% CTR and {ad.roas}x ROAS, this ad converts browsers into buyers {ad.roas >= 4 ? "exceptionally well" : "effectively"}.
+                </p>
+              </div>
+              {ad.roas >= 4 && (
+                <div className="flex items-start gap-2">
+                  <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 mt-1.5 flex-shrink-0" />
+                  <p className="text-xs text-emerald-700 leading-relaxed">
+                    <span className="font-medium">Top performer</span> — Consider increasing budget by 20-30% to scale this winning ad.
+                  </p>
+                </div>
+              )}
+            </div>
+          </div>
         </div>
 
-        {/* SECTION 5 — Actions */}
+        {/* SECTION 6 — Actions */}
         <div className="p-4 border-t border-gray-100 space-y-2">
           <a
             href={`/ads/${ad.id}`}
