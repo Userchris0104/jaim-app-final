@@ -323,34 +323,39 @@ const GENDER_OPTIONS = [
 
 // Detect gender from product tags and title
 function detectGender(product: Product): "men" | "women" | "unisex" {
-  const menKeywords = ["men", "male", "mens", "man"];
-  const womenKeywords = ["women", "female", "womens", "woman"];
+  // Check women first since "men" is a substring of "women"
+  const womenKeywords = ["women", "woman", "womens", "female", "ladies", "lady"];
+  const menKeywords = ["men", "man", "mens", "male"];
 
-  // Parse tags into lowercase array
+  // Helper to check for whole word match in text
+  const hasWordMatch = (text: string, keywords: string[]): boolean => {
+    const lowerText = text.toLowerCase();
+    return keywords.some((kw) => {
+      const regex = new RegExp(`\\b${kw}\\b`, "i");
+      return regex.test(lowerText);
+    });
+  };
+
+  // Parse tags into array
   const tags = product.tags
-    ? product.tags.split(",").map((t) => t.trim().toLowerCase())
+    ? product.tags.split(",").map((t) => t.trim())
     : [];
 
   // Check tags first
-  const hasMenTag = tags.some((tag) =>
-    menKeywords.some((kw) => tag === kw || tag.includes(kw))
-  );
-  const hasWomenTag = tags.some((tag) =>
-    womenKeywords.some((kw) => tag === kw || tag.includes(kw))
-  );
+  const hasWomenTag = tags.some((tag) => hasWordMatch(tag, womenKeywords));
+  const hasMenTag = tags.some((tag) => hasWordMatch(tag, menKeywords));
 
-  if (hasMenTag && hasWomenTag) return "unisex";
-  if (hasMenTag) return "men";
+  if (hasWomenTag && hasMenTag) return "unisex";
   if (hasWomenTag) return "women";
+  if (hasMenTag) return "men";
 
   // Fallback to title check
-  const titleLower = product.title.toLowerCase();
-  const hasMenTitle = menKeywords.some((kw) => titleLower.includes(kw));
-  const hasWomenTitle = womenKeywords.some((kw) => titleLower.includes(kw));
+  const hasWomenTitle = hasWordMatch(product.title, womenKeywords);
+  const hasMenTitle = hasWordMatch(product.title, menKeywords);
 
-  if (hasMenTitle && hasWomenTitle) return "unisex";
-  if (hasMenTitle) return "men";
+  if (hasWomenTitle && hasMenTitle) return "unisex";
   if (hasWomenTitle) return "women";
+  if (hasMenTitle) return "men";
 
   // Default to unisex if nothing found
   return "unisex";
@@ -358,23 +363,26 @@ function detectGender(product: Product): "men" | "women" | "unisex" {
 
 // Check if a product has any gender signal (for filter visibility)
 function hasGenderSignal(product: Product): boolean {
-  const genderKeywords = ["men", "male", "mens", "man", "women", "female", "womens", "woman"];
+  const genderKeywords = ["women", "woman", "womens", "female", "ladies", "lady", "men", "man", "mens", "male"];
+
+  // Helper to check for whole word match
+  const hasWordMatch = (text: string): boolean => {
+    const lowerText = text.toLowerCase();
+    return genderKeywords.some((kw) => {
+      const regex = new RegExp(`\\b${kw}\\b`, "i");
+      return regex.test(lowerText);
+    });
+  };
 
   // Check tags
   const tags = product.tags
-    ? product.tags.split(",").map((t) => t.trim().toLowerCase())
+    ? product.tags.split(",").map((t) => t.trim())
     : [];
 
-  const hasTagSignal = tags.some((tag) =>
-    genderKeywords.some((kw) => tag === kw || tag.includes(kw))
-  );
-  if (hasTagSignal) return true;
+  if (tags.some(hasWordMatch)) return true;
 
   // Check title
-  const titleLower = product.title.toLowerCase();
-  const hasTitleSignal = genderKeywords.some((kw) => titleLower.includes(kw));
-
-  return hasTitleSignal;
+  return hasWordMatch(product.title);
 }
 
 export default function ProductsPage() {
