@@ -1105,11 +1105,15 @@ export default function AnalyticsPage() {
   const [activeCategory, setActiveCategory] = useState("");
   const [activePlatform, setActivePlatform] = useState("");
 
-  // Read platform filter from URL on mount
+  // Read filters from URL on mount
   useEffect(() => {
     const platform = searchParams.get("platform");
     if (platform && ["tiktok", "instagram", "facebook"].includes(platform)) {
       setActivePlatform(platform);
+    }
+    const ad = searchParams.get("ad");
+    if (ad) {
+      setActiveAd(ad);
     }
   }, [searchParams]);
   const [activeStatus, setActiveStatus] = useState("");

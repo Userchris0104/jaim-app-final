@@ -300,7 +300,7 @@ export default function DashboardPage() {
 
   const handleViewReport = (adId: number) => {
     setSelectedAd(null);
-    navigate(`/ads/${adId}`);
+    navigate(`/analytics?ad=${adId}`);
   };
 
   const revenueData = revenueDataByRange[timeRange];
