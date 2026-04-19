@@ -201,6 +201,284 @@ function ToastNotification({ toast, onDismiss }: { toast: Toast; onDismiss: () =
   );
 }
 
+// Manage Connections Modal
+function ManageConnectionsModal({
+  isOpen,
+  onClose,
+  connections,
+  onDisconnect,
+  onConnect,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  connections: PlatformConnection[];
+  onDisconnect: (platform: "meta" | "tiktok") => void;
+  onConnect: (platform: "meta" | "tiktok") => void;
+}) {
+  // Modal view state: "list" | "warning" | "success"
+  const [viewState, setViewState] = useState<"list" | "warning" | "success">("list");
+  const [selectedPlatform, setSelectedPlatform] = useState<"meta" | "tiktok" | null>(null);
+
+  // Reset state when modal opens/closes
+  useEffect(() => {
+    if (isOpen) {
+      setViewState("list");
+      setSelectedPlatform(null);
+    }
+  }, [isOpen]);
+
+  // Handle ESC key and body scroll
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape") {
+        if (viewState === "warning") {
+          setViewState("list");
+        } else {
+          onClose();
+        }
+      }
+    };
+    if (isOpen) {
+      document.addEventListener("keydown", handleEscape);
+      document.body.style.overflow = "hidden";
+    }
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+      document.body.style.overflow = "";
+    };
+  }, [isOpen, viewState, onClose]);
+
+  // Auto-close after success
+  useEffect(() => {
+    if (viewState === "success") {
+      const timer = setTimeout(() => {
+        onClose();
+      }, 1500);
+      return () => clearTimeout(timer);
+    }
+  }, [viewState, onClose]);
+
+  if (!isOpen) return null;
+
+  const handleDisconnectClick = (platform: "meta" | "tiktok") => {
+    setSelectedPlatform(platform);
+    setViewState("warning");
+  };
+
+  const handleConfirmDisconnect = () => {
+    if (selectedPlatform) {
+      // TODO: Call real disconnect API when Meta/TikTok OAuth is implemented
+      onDisconnect(selectedPlatform);
+      setViewState("success");
+    }
+  };
+
+  const handleCancelWarning = () => {
+    setViewState("list");
+    setSelectedPlatform(null);
+  };
+
+  const platformName = selectedPlatform === "meta" ? "Meta Ads" : "TikTok Ads";
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+      onClick={onClose}
+    >
+      <div
+        className="bg-white rounded-2xl max-w-md w-full shadow-2xl overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
+        {/* Header */}
+        <div className="p-6 border-b border-gray-100">
+          <div className="flex items-start justify-between">
+            <div>
+              <h2 className="text-xl font-bold text-gray-900">Manage connections</h2>
+              <p className="text-sm text-gray-500 mt-1">Connect or disconnect your ad platforms</p>
+            </div>
+            <button
+              onClick={onClose}
+              className="w-8 h-8 bg-gray-100 hover:bg-gray-200 rounded-full flex items-center justify-center transition"
+            >
+              <svg className="w-4 h-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        {/* Body */}
+        <div className="p-6">
+          {viewState === "list" && (
+            <div className="space-y-4">
+              {/* Meta Row */}
+              {(() => {
+                const metaConn = connections.find((c) => c.platform === "meta");
+                const isConnected = metaConn?.connected || false;
+                return (
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-blue-600 to-blue-700 flex items-center justify-center text-white font-bold">
+                        M
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900">Meta Ads</p>
+                        <p className="text-xs text-gray-500">Facebook & Instagram</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {isConnected ? (
+                        <>
+                          <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
+                            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                            Connected
+                          </span>
+                          <button
+                            onClick={() => handleDisconnectClick("meta")}
+                            className="px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition"
+                          >
+                            Disconnect
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex items-center gap-1.5 text-xs text-gray-500">
+                            <span className="w-1.5 h-1.5 bg-gray-300 rounded-full" />
+                            Not connected
+                          </span>
+                          <button
+                            onClick={() => onConnect("meta")}
+                            className="px-3 py-1.5 text-sm font-medium text-white bg-gradient-to-r from-violet-600 to-purple-600 rounded-lg hover:from-violet-700 hover:to-purple-700 transition"
+                          >
+                            Connect
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
+              {/* Divider */}
+              <div className="border-t border-gray-100" />
+
+              {/* TikTok Row */}
+              {(() => {
+                const tiktokConn = connections.find((c) => c.platform === "tiktok");
+                const isConnected = tiktokConn?.connected || false;
+                return (
+                  <div className="flex items-center justify-between p-4 bg-gray-50 rounded-xl">
+                    <div className="flex items-center gap-3">
+                      <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-gray-900 to-black flex items-center justify-center text-white">
+                        <svg className="w-5 h-5" viewBox="0 0 24 24" fill="currentColor">
+                          <path d="M19.59 6.69a4.83 4.83 0 01-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 01-5.2 1.74 2.89 2.89 0 012.31-4.64 2.93 2.93 0 01.88.13V9.4a6.84 6.84 0 00-1-.05A6.33 6.33 0 005 20.1a6.34 6.34 0 0010.86-4.43v-7a8.16 8.16 0 004.77 1.52v-3.4a4.85 4.85 0 01-1-.1z" />
+                        </svg>
+                      </div>
+                      <div>
+                        <p className="font-semibold text-gray-900">TikTok Ads</p>
+                        <p className="text-xs text-gray-500">TikTok for Business</p>
+                      </div>
+                    </div>
+                    <div className="flex items-center gap-3">
+                      {isConnected ? (
+                        <>
+                          <span className="flex items-center gap-1.5 text-xs text-emerald-600 font-medium">
+                            <span className="w-1.5 h-1.5 bg-emerald-500 rounded-full" />
+                            Connected
+                          </span>
+                          <button
+                            onClick={() => handleDisconnectClick("tiktok")}
+                            className="px-3 py-1.5 text-sm font-medium text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition"
+                          >
+                            Disconnect
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <span className="flex items-center gap-1.5 text-xs text-gray-500">
+                            <span className="w-1.5 h-1.5 bg-gray-300 rounded-full" />
+                            Not connected
+                          </span>
+                          <button
+                            onClick={() => onConnect("tiktok")}
+                            className="px-3 py-1.5 text-sm font-medium text-white bg-gradient-to-r from-violet-600 to-purple-600 rounded-lg hover:from-violet-700 hover:to-purple-700 transition"
+                          >
+                            Connect
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+            </div>
+          )}
+
+          {viewState === "warning" && selectedPlatform && (
+            <div className="text-center">
+              {/* Warning Icon */}
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-amber-100 flex items-center justify-center">
+                <svg className="w-8 h-8 text-amber-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                </svg>
+              </div>
+
+              <h3 className="text-lg font-bold text-gray-900 mb-2">Disconnect {platformName}?</h3>
+              <p className="text-sm text-gray-600 mb-6">
+                {selectedPlatform === "meta"
+                  ? "Disconnecting Meta Ads means your Facebook and Instagram campaigns will stop running immediately. Any active ads will be paused and you will lose access to campaign performance data until you reconnect."
+                  : "Disconnecting TikTok Ads means your TikTok campaigns will stop running immediately. Any active ads will be paused and you will lose access to campaign performance data until you reconnect."}
+              </p>
+
+              <div className="flex items-center gap-3">
+                <button
+                  onClick={handleCancelWarning}
+                  className="flex-1 py-2.5 bg-gray-100 text-gray-700 rounded-xl font-medium hover:bg-gray-200 transition"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={handleConfirmDisconnect}
+                  className="flex-1 py-2.5 bg-red-600 text-white rounded-xl font-semibold hover:bg-red-700 transition"
+                >
+                  Yes, disconnect
+                </button>
+              </div>
+            </div>
+          )}
+
+          {viewState === "success" && selectedPlatform && (
+            <div className="text-center py-8">
+              {/* Success Icon */}
+              <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-gray-100 flex items-center justify-center">
+                <svg className="w-8 h-8 text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
+              <p className="text-gray-900 font-medium">
+                {selectedPlatform === "meta" ? "Meta Ads" : "TikTok Ads"} disconnected successfully
+              </p>
+            </div>
+          )}
+        </div>
+
+        {/* Footer - only show in list view */}
+        {viewState === "list" && (
+          <div className="p-6 border-t border-gray-100">
+            <button
+              onClick={onClose}
+              className="w-full py-2.5 bg-gray-900 text-white rounded-xl font-semibold hover:bg-gray-800 transition"
+            >
+              Done
+            </button>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 // Campaign Detail Modal
 function CampaignDetailModal({
   campaign,
@@ -459,6 +737,9 @@ export default function CampaignsPage() {
   // Campaign detail modal state
   const [selectedCampaign, setSelectedCampaign] = useState<Campaign | null>(null);
 
+  // Manage connections modal state
+  const [showConnectionsModal, setShowConnectionsModal] = useState(false);
+
   // Current store state
   const [currentStore, setCurrentStore] = useState<Store | null>(null);
   const [storeLoading, setStoreLoading] = useState(true);
@@ -621,6 +902,17 @@ export default function CampaignsPage() {
   const handleConnect = (platform: "meta" | "tiktok") => {
     const platformName = platform === "meta" ? "Meta Ads" : "TikTok Ads";
     showToast(`${platformName} connection coming soon`);
+  };
+
+  // Handle disconnect button (from modal)
+  const handleDisconnect = (platform: "meta" | "tiktok") => {
+    setPlatformConnections((prev) =>
+      prev.map((p) =>
+        p.platform === platform
+          ? { ...p, connected: false, accountName: undefined, connectedAt: undefined }
+          : p
+      )
+    );
   };
 
   // Handle campaign actions
@@ -921,7 +1213,10 @@ export default function CampaignsPage() {
                 </div>
               ))}
             </div>
-            <button className="text-sm text-violet-600 hover:text-violet-700 font-medium">
+            <button
+              onClick={() => setShowConnectionsModal(true)}
+              className="text-sm text-violet-600 hover:text-violet-700 font-medium"
+            >
               Manage connections
             </button>
           </div>
@@ -1007,6 +1302,15 @@ export default function CampaignsPage() {
       <CampaignDetailModal
         campaign={selectedCampaign}
         onClose={() => setSelectedCampaign(null)}
+      />
+
+      {/* Manage Connections Modal */}
+      <ManageConnectionsModal
+        isOpen={showConnectionsModal}
+        onClose={() => setShowConnectionsModal(false)}
+        connections={effectiveConnections}
+        onDisconnect={handleDisconnect}
+        onConnect={handleConnect}
       />
 
       {/* Toast Container */}
