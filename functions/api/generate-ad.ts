@@ -9,6 +9,8 @@
  * - ZERO_HALLUCINATION: Product image always comes from Shopify. AI generates scene only.
  * - NEUTRAL_NO_FASHN: NEUTRAL gender never calls FASHN. Routed to Bria instead.
  * - AB_TESTING: Always generate 3 variants. Never generate a single ad in isolation.
+ * - SMART_ASSIGNMENT: 1 model variant (FASHN) + 2 product variants (Bria).
+ *   JAIM decides which variant gets the model based on product/brand analysis.
  * - PARALLEL_EXECUTION: Image and copy generation always run in parallel.
  */
 
@@ -94,6 +96,203 @@ function detectGender(product: Product): Gender {
   if (hasMale && !hasFemale) return 'MALE';
   if (hasFemale && !hasMale) return 'FEMALE';
   return 'NEUTRAL';
+}
+
+// ===========================================
+// SMART VARIANT ASSIGNMENT
+// ===========================================
+
+/**
+ * JAIM intelligently selects which variant gets the model image
+ * Based on product characteristics, brand style, and strategic rotation
+ *
+ * Logic:
+ * - Lifestyle brands → Model on B (emotion/lifestyle)
+ * - Bold/edgy brands → Model on C (pattern interrupt)
+ * - Clean/minimal brands → Model on A (benefit focused)
+ * - Premium/luxury → Model on B or C (aspirational)
+ * - Default: Rotate based on product hash for variety
+ */
+function selectModelVariant(
+  product: Product,
+  brandStyle: BrandStyleProfile | null,
+  productStyle: ProductStyleProfile | null
+): AdVariant {
+  const mood = brandStyle?.mood?.toLowerCase() || '';
+  const visualTone = brandStyle?.visualTone?.toLowerCase() || '';
+  const contentStyle = brandStyle?.contentStyle?.toLowerCase() || '';
+  const suggestedStyle = productStyle?.suggestedAdStyle?.toLowerCase() || '';
+
+  // Bold, edgy, or high-contrast brands → Model on C (pattern interrupt)
+  if (
+    mood.includes('bold') ||
+    mood.includes('edgy') ||
+    visualTone.includes('dramatic') ||
+    visualTone.includes('high contrast') ||
+    suggestedStyle.includes('bold')
+  ) {
+    console.log('[VARIANT_SELECT] Bold brand detected → Model on C');
+    return 'C';
+  }
+
+  // Lifestyle, aspirational, or emotional brands → Model on B (lifestyle)
+  if (
+    contentStyle.includes('lifestyle') ||
+    mood.includes('aspirational') ||
+    mood.includes('warm') ||
+    mood.includes('inviting') ||
+    suggestedStyle.includes('lifestyle')
+  ) {
+    console.log('[VARIANT_SELECT] Lifestyle brand detected → Model on B');
+    return 'B';
+  }
+
+  // Minimal, clean, or professional brands → Model on A (clean/minimal)
+  if (
+    visualTone.includes('minimal') ||
+    visualTone.includes('clean') ||
+    mood.includes('professional') ||
+    mood.includes('sophisticated') ||
+    suggestedStyle.includes('minimal')
+  ) {
+    console.log('[VARIANT_SELECT] Minimal brand detected → Model on A');
+    return 'A';
+  }
+
+  // Default: Rotate based on product ID hash for variety
+  const hash = product.id.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const variants: AdVariant[] = ['A', 'B', 'C'];
+  const selected = variants[hash % 3];
+  console.log('[VARIANT_SELECT] Default rotation → Model on', selected);
+  return selected;
+}
+
+/**
+ * Generate image for a specific variant with model/product mode control
+ */
+async function generateAdImageForVariant(
+  product: Product,
+  gender: Gender,
+  sceneRules: SceneRules,
+  brandStyle: BrandStyleProfile | null,
+  productStyle: ProductStyleProfile | null,
+  env: Env,
+  useModel: boolean
+): Promise<ImageGenerationResult> {
+  // Import the providers dynamically to avoid circular deps
+  const {
+    generateWithFashn,
+    generateWithBria,
+    generateFluxBackground,
+    saveToR2,
+    isWearableProduct
+  } = await import('../lib/image/providers');
+
+  // Get product image URL
+  let productImageUrl: string | null = product.image_url;
+  if (!productImageUrl && product.images) {
+    try {
+      const images = JSON.parse(product.images);
+      productImageUrl = images[0] || null;
+    } catch {
+      productImageUrl = null;
+    }
+  }
+
+  if (!productImageUrl) {
+    return {
+      finalImageUrl: null,
+      sceneImageUrl: null,
+      productImageUrl: null,
+      method: 'shopify_only'
+    };
+  }
+
+  const adId = crypto.randomUUID();
+
+  // MODEL MODE: Use FASHN for model generation
+  if (useModel && gender !== 'NEUTRAL' && env.FASHNAI_API_KEY) {
+    console.log('[IMAGE_GEN] Mode: FASHN model (selected variant)');
+
+    const fashnUrl = await generateWithFashn(
+      productImageUrl,
+      gender,
+      brandStyle,
+      productStyle,
+      env
+    );
+
+    if (fashnUrl) {
+      const r2Url = await saveToR2(fashnUrl, product.store_id, adId, 'fashn', env);
+      return {
+        finalImageUrl: r2Url,
+        sceneImageUrl: null,
+        productImageUrl: productImageUrl,
+        method: 'fashn_model'
+      };
+    }
+    console.warn('[IMAGE_GEN] FASHN failed, falling back to Bria');
+  }
+
+  // PRODUCT MODE: Use Bria for product shots
+  if (env.FAL_API_KEY && productImageUrl) {
+    console.log('[IMAGE_GEN] Mode: Bria product shot');
+
+    const briaUrl = await generateWithBria(
+      productImageUrl,
+      sceneRules.environment,
+      brandStyle,
+      productStyle,
+      env
+    );
+
+    if (briaUrl) {
+      const r2Url = await saveToR2(briaUrl, product.store_id, adId, 'bria', env);
+      return {
+        finalImageUrl: r2Url,
+        sceneImageUrl: null,
+        productImageUrl: productImageUrl,
+        method: 'bria_product_shot'
+      };
+    }
+    console.warn('[IMAGE_GEN] Bria failed, falling back to FLUX');
+  }
+
+  // FALLBACK: FLUX + CSS overlay
+  console.log('[IMAGE_GEN] Mode: FLUX + CSS overlay fallback');
+
+  const backgroundPrompt = [
+    sceneRules.environment,
+    brandStyle?.visualTone ? `${brandStyle.visualTone} aesthetic` : '',
+    brandStyle?.mood ? `${brandStyle.mood} mood` : '',
+    'Empty background only. No products, no objects, no people, no text.'
+  ].filter(Boolean).join('. ');
+
+  const fluxUrl = await generateFluxBackground(
+    backgroundPrompt,
+    sceneRules.negativePromptAdditions,
+    env
+  );
+
+  if (fluxUrl) {
+    const r2SceneUrl = await saveToR2(fluxUrl, product.store_id, adId, 'scene', env);
+    const r2ProductUrl = await saveToR2(productImageUrl, product.store_id, adId, 'product', env);
+
+    return {
+      finalImageUrl: r2SceneUrl,
+      sceneImageUrl: r2SceneUrl,
+      productImageUrl: r2ProductUrl,
+      method: 'css_overlay'
+    };
+  }
+
+  // Ultimate fallback
+  return {
+    finalImageUrl: productImageUrl,
+    sceneImageUrl: null,
+    productImageUrl: productImageUrl,
+    method: 'shopify_only'
+  };
 }
 
 // ===========================================
@@ -360,29 +559,39 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       return generateAdCopy(prod, e, bs, productStyle, variantPrompt);
     };
 
-    // AB_TESTING: Always generate 3 variants in parallel
-    console.log('[AD_GEN] Generating 3 A/B variants...');
+    // AB_TESTING: Generate 3 variants with smart image assignment
+    // 1 model variant (FASHN for fashion) + 2 product variants (Bria)
+    console.log('[AD_GEN] Generating 3 A/B variants with smart assignment...');
 
     const variants: AdVariant[] = ['A', 'B', 'C'];
-    const variantResults: VariantResult[] = [];
+    const isWearableFashion = gender !== 'NEUTRAL' && env.FASHNAI_API_KEY;
+
+    // JAIM decides which variant gets the model based on product analysis
+    const modelVariant = isWearableFashion
+      ? selectModelVariant(product, brandStyle, productStyle)
+      : null;
+
+    console.log('[AD_GEN] Model variant assignment:', modelVariant || 'none (all product shots)');
 
     // Generate all variants in parallel
     const results = await Promise.allSettled(
       variants.map(async (variant) => {
         const sceneRules = getSceneRulesForVariant(variant, brandStyle);
         const copyPrompt = getCopyPromptForVariant(variant);
+        const useModel = variant === modelVariant;
 
-        console.log(`[AD_GEN] Starting variant ${variant}...`);
+        console.log(`[AD_GEN] Starting variant ${variant}... (${useModel ? 'MODEL' : 'PRODUCT'})`);
 
         // PARALLEL_EXECUTION: Image and copy run together
         const [imageResult, copyResult] = await Promise.all([
-          generateAdImage(
+          generateAdImageForVariant(
             product,
             gender,
             sceneRules,
             brandStyle,
             productStyle,
-            env
+            env,
+            useModel
           ),
           generateAdCopy(product, env, brandStyle, productStyle, copyPrompt)
         ]);
