@@ -269,9 +269,11 @@ function AdCard({
 function AdPreviewModal({
   ad,
   onClose,
+  onViewReport,
 }: {
   ad: Ad | null;
   onClose: () => void;
+  onViewReport: (adId: string) => void;
 }) {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -417,6 +419,17 @@ function AdPreviewModal({
               )}
             </div>
           </div>
+
+          {/* View Full Report Button */}
+          <button
+            onClick={() => onViewReport(ad.id)}
+            className="w-full mt-6 py-3 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+          >
+            View Full Report
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+            </svg>
+          </button>
         </div>
       </div>
     </div>
@@ -831,7 +844,14 @@ export default function AdsPage() {
       )}
 
       {/* Ad Preview Modal */}
-      <AdPreviewModal ad={previewAd} onClose={() => setPreviewAd(null)} />
+      <AdPreviewModal
+        ad={previewAd}
+        onClose={() => setPreviewAd(null)}
+        onViewReport={(adId) => {
+          setPreviewAd(null);
+          navigate(`/analytics?ad=${adId}`);
+        }}
+      />
     </div>
   );
 }
