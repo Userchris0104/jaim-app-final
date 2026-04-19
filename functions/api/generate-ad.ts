@@ -103,9 +103,9 @@ async function generateAdCopy(
 
 Write ad copy for this product. Return ONLY this exact JSON structure:
 {
-  "headline": "max 40 chars - specific and punchy",
-  "primaryText": "max 125 chars - benefit focused",
-  "description": "max 90 chars - supporting detail",
+  "headline": "max 40 chars",
+  "primaryText": "max 125 chars",
+  "description": "max 90 chars",
   "cta": "one of: Shop Now, Learn More, Get Yours, Buy Now, Discover, Order Now"
 }
 
@@ -116,11 +116,15 @@ Price: $${product.price || 0}
 Brand: ${product.vendor || 'Unknown'}
 Brand mood: ${brandStyle?.mood || 'professional'}
 
-Rules:
+CRITICAL RULES:
+- EVERY field must be a COMPLETE sentence or phrase. NEVER cut off mid-word or mid-sentence.
+- If approaching the character limit, write a shorter complete sentence instead.
+- headline: Punchy, specific, creates curiosity or urgency (max 40 chars)
+- primaryText: Benefit-focused, must be a complete thought (max 125 chars)
+- description: Supporting detail, complete sentence (max 90 chars)
 - Reference specific product details from above
-- Never use these words: high quality, amazing, incredible, perfect, best in class, game-changing
-- Match the brand mood exactly: ${brandStyle?.mood || 'professional'}
-- Headline must create curiosity or urgency
+- Never use: high quality, amazing, incredible, perfect, best in class, game-changing
+- Match the brand mood: ${brandStyle?.mood || 'professional'}
 - Be specific — generic copy is not acceptable`
             }]
           })
