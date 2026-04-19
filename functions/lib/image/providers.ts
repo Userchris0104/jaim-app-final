@@ -84,13 +84,25 @@ const WEARABLE_KEYWORDS = [
   'clothing', 'apparel', 'shirt', 'jacket', 'pants', 'dress',
   'shoes', 'tops', 'bottoms', 'outerwear', 'fashion', 'jeans',
   'sweater', 'hoodie', 'coat', 'blouse', 'skirt', 'shorts',
-  't-shirt', 'tee', 'blazer', 'cardigan', 'vest', 'suit'
+  't-shirt', 'tee', 'blazer', 'cardigan', 'vest', 'suit',
+  'jumpsuit', 'romper', 'leggings', 'trousers', 'polo', 'tank',
+  'bodysuit', 'lingerie', 'swimwear', 'bikini', 'underwear',
+  'activewear', 'sportswear', 'athleisure', 'loungewear'
 ];
 
-export function isWearableProduct(productType: string | null): boolean {
-  if (!productType) return false;
-  const lower = productType.toLowerCase();
-  return WEARABLE_KEYWORDS.some(w => lower.includes(w));
+export function isWearableProduct(
+  productType: string | null,
+  title?: string | null,
+  tags?: string | null
+): boolean {
+  // Check all available fields
+  const searchText = [productType, title, tags]
+    .filter(Boolean)
+    .join(' ')
+    .toLowerCase();
+
+  if (!searchText) return false;
+  return WEARABLE_KEYWORDS.some(w => searchText.includes(w));
 }
 
 // ===========================================
@@ -98,8 +110,9 @@ export function isWearableProduct(productType: string | null): boolean {
 // ===========================================
 
 /**
- * Generate image using FASHN.ai virtual try-on
+ * Generate image using FASHN.ai Product-to-Model
  * Used for wearable fashion products with MALE or FEMALE gender
+ * Generates a model wearing the product directly from the product image
  */
 export async function generateWithFashn(
   productImageUrl: string,
@@ -113,16 +126,17 @@ export async function generateWithFashn(
     return null;
   }
 
-  const modelDescription = [
+  // Build prompt for the model appearance and setting
+  const prompt = [
     `${gender === 'MALE' ? 'Male' : 'Female'} model`,
-    brandStyle?.contentStyle || 'lifestyle setting',
+    `${brandStyle?.contentStyle || 'lifestyle'} photoshoot`,
     `${brandStyle?.mood || 'contemporary'} mood`,
-    `color palette inspired by: ${brandStyle?.colors?.map(c => c.hex).join(', ') || 'neutral tones'}`,
-    productStyle?.modelStyle ? `Model style: ${productStyle.modelStyle}` : '',
-    productStyle?.suggestedAdStyle || ''
+    productStyle?.modelStyle || '',
+    brandStyle?.visualTone || 'professional',
+    'fashion editorial, high quality, well-lit'
   ].filter(Boolean).join(', ');
 
-  console.log('[FASHN] Generating with model description:', modelDescription);
+  console.log('[FASHN] Generating with prompt:', prompt);
 
   try {
     const response = await fetch('https://api.fashn.ai/v1/run', {
@@ -132,12 +146,16 @@ export async function generateWithFashn(
         'Content-Type': 'application/json'
       },
       body: JSON.stringify({
-        model_image: modelDescription,
-        garment_image: productImageUrl,
-        category: 'tops',  // TODO: Detect from product type
-        mode: 'quality',
-        garment_photo_type: 'auto',
-        nsfw_filter: true
+        model_name: 'product-to-model',
+        inputs: {
+          product_image: productImageUrl,
+          prompt: prompt,
+          aspect_ratio: '4:5',
+          resolution: '1k',
+          generation_mode: 'balanced',
+          output_format: 'png',
+          return_base64: false
+        }
       })
     });
 
@@ -147,7 +165,13 @@ export async function generateWithFashn(
       return null;
     }
 
-    const data = await response.json() as { id: string };
+    const data = await response.json() as { id: string; error?: string };
+
+    if (data.error) {
+      console.error('[FASHN] API returned error:', data.error);
+      return null;
+    }
+
     console.log('[FASHN] Job started:', data.id);
 
     return await pollFashnResult(data.id, env);
@@ -394,7 +418,9 @@ export async function generateAdImage(
   product: {
     id: string;
     store_id: string;
+    title: string;
     product_type: string | null;
+    tags: string | null;
     images: string | null;
     image_url: string | null;
   },
@@ -440,7 +466,7 @@ export async function generateAdImage(
     console.warn('[STYLE_PROFILES] No product style — using defaults.');
   }
 
-  const isWearable = isWearableProduct(product.product_type);
+  const isWearable = isWearableProduct(product.product_type, product.title, product.tags);
   const adId = crypto.randomUUID();
 
   // MODE 1: FASHN for wearable fashion with gendered model

@@ -82,8 +82,14 @@ const FEMALE_KEYWORDS = [
 function detectGender(product: Product): Gender {
   const searchText = `${product.title} ${product.product_type || ''} ${product.tags || ''} ${product.description || ''}`.toLowerCase();
 
-  const hasMale = MALE_KEYWORDS.some(k => searchText.includes(k));
-  const hasFemale = FEMALE_KEYWORDS.some(k => searchText.includes(k));
+  // Use word boundary regex to avoid "men" matching inside "women"
+  const matchesKeyword = (keywords: string[]) =>
+    keywords.some(k => new RegExp(`\\b${k}\\b`).test(searchText));
+
+  const hasMale = matchesKeyword(MALE_KEYWORDS);
+  const hasFemale = matchesKeyword(FEMALE_KEYWORDS);
+
+  console.log('[GENDER_DETECT] hasMale:', hasMale, 'hasFemale:', hasFemale);
 
   if (hasMale && !hasFemale) return 'MALE';
   if (hasFemale && !hasMale) return 'FEMALE';

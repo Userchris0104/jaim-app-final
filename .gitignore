@@ -8,3 +8,4 @@
 /build/
 
 # Note: .dev.vars.example is NOT ignored — commit it to repo
+.wrangler/
