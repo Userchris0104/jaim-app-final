@@ -1165,69 +1165,44 @@ export default function AnalyticsPage() {
             </div>
           </div>
 
-          {/* Stacked Bar Chart */}
-          <div className="flex-1 min-h-[200px] flex items-end justify-between gap-3 mb-4">
-            {chartData.map((d, i) => {
-              const height = maxChartValue > 0 ? (d.value / maxChartValue) * 100 : 0;
-              // Generate stacked segment heights (mock data for visual effect)
-              const segment1 = height * 0.45; // Revenue portion
-              const segment2 = height * 0.30; // Clicks portion
-              const segment3 = height * 0.25; // Conversions portion
-              return (
-                <div key={i} className="flex-1 flex flex-col items-center">
-                  <span className="text-[9px] text-gray-400 mb-1">
-                    {activeMetric === "revenue" || activeMetric === "sales" ? "$" : ""}
-                    {d.value.toLocaleString()}
-                  </span>
-                  <div className="w-full flex flex-col-reverse" style={{ height: `${Math.max(height, 8)}%` }}>
-                    {/* Bottom segment - Revenue (purple) */}
-                    <div
-                      className="w-full"
-                      style={{
-                        height: `${segment1}%`,
-                        backgroundColor: "rgba(124, 58, 237, 0.9)",
-                        borderRadius: "0 0 4px 4px",
-                      }}
-                    />
-                    {/* Middle segment - Clicks (violet light) */}
-                    <div
-                      className="w-full"
-                      style={{
-                        height: `${segment2}%`,
-                        backgroundColor: "rgba(139, 92, 246, 0.7)",
-                      }}
-                    />
-                    {/* Top segment - Conversions (violet lighter) */}
-                    <div
-                      className="w-full"
-                      style={{
-                        height: `${segment3}%`,
-                        backgroundColor: "rgba(167, 139, 250, 0.5)",
-                        borderRadius: "4px 4px 0 0",
-                      }}
-                    />
-                  </div>
-                  <span className="text-[10px] text-gray-400 mt-2">{d.day}</span>
-                </div>
-              );
-            })}
-          </div>
+          {/* Bar Chart */}
+          {(() => {
+            // MOCK: Replace with real analytics API data when available
+            const revenueData = [
+              { day: "Mon", value: 935 },
+              { day: "Tue", value: 853 },
+              { day: "Wed", value: 1199 },
+              { day: "Thu", value: 579 },
+              { day: "Fri", value: 1138 },
+              { day: "Sat", value: 967 },
+              { day: "Sun", value: 1133 },
+            ];
+            const maxValue = Math.max(...revenueData.map(d => d.value));
 
-          {/* Chart Legend */}
-          <div className="flex items-center gap-4 mb-4">
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "rgba(124, 58, 237, 0.9)" }} />
-              <span className="text-[10px] text-gray-500">Revenue</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "rgba(139, 92, 246, 0.7)" }} />
-              <span className="text-[10px] text-gray-500">Clicks</span>
-            </div>
-            <div className="flex items-center gap-1.5">
-              <span className="w-2.5 h-2.5 rounded-sm" style={{ backgroundColor: "rgba(167, 139, 250, 0.5)" }} />
-              <span className="text-[10px] text-gray-500">Conversions</span>
-            </div>
-          </div>
+            return (
+              <div className="flex-1 min-h-[200px] flex items-end justify-between gap-3 mb-4">
+                {revenueData.map((d, i) => {
+                  const height = (d.value / maxValue) * 100;
+                  return (
+                    <div key={i} className="flex-1 flex flex-col items-center">
+                      <span className="text-[11px] text-gray-400 mb-1">
+                        ${d.value.toLocaleString()}
+                      </span>
+                      <div
+                        className="w-full"
+                        style={{
+                          height: `${height}%`,
+                          backgroundColor: "rgba(124, 58, 237, 0.85)",
+                          borderRadius: "6px 6px 0 0",
+                        }}
+                      />
+                      <span className="text-[11px] text-gray-400 mt-2">{d.day}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            );
+          })()}
 
           {/* Chart Footer */}
           <div className="flex items-center justify-between pt-3 border-t border-gray-100 mb-4">
