@@ -415,10 +415,10 @@ function AdReportPanel({
         onClick={handleClose}
       />
 
-      {/* Panel */}
+      {/* Modal */}
       <div
-        className={`fixed top-0 right-0 h-full w-[420px] bg-white shadow-2xl z-50 flex flex-col transition-transform duration-200 ease-out ${
-          isClosing ? "translate-x-full" : "translate-x-0"
+        className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[420px] max-h-[90vh] bg-white rounded-2xl shadow-2xl z-50 flex flex-col transition-all duration-200 ease-out ${
+          isClosing ? "opacity-0 scale-95" : "opacity-100 scale-100"
         }`}
       >
         {/* Header */}
