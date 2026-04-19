@@ -1263,26 +1263,51 @@ export default function AnalyticsPage() {
     return parts.join(" · ");
   };
 
-  // ROAS status
+  // ROAS status with time range
+  const getTimeRangeLabel = () => {
+    if (timeRange === "7") return "last 7 days";
+    if (timeRange === "90") return "last 90 days";
+    return "last 30 days";
+  };
+
   const getRoasStatus = (roas: number) => {
+    const period = getTimeRangeLabel();
     if (roas >= 4) return {
       bg: "bg-violet-50",
       border: "border-violet-200",
-      title: "Great performance this period",
+      title: `Great performance over the ${period}`,
       icon: "text-violet-600"
     };
     if (roas >= 2) return {
       bg: "bg-blue-50",
       border: "border-blue-200",
-      title: "Profitable performance this period",
+      title: `Profitable performance over the ${period}`,
       icon: "text-blue-600"
     };
     return {
       bg: "bg-amber-50",
       border: "border-amber-200",
-      title: "Performance needs attention",
+      title: `Performance needs attention (${period})`,
       icon: "text-amber-600"
     };
+  };
+
+  // Get context string for ROAS banner based on active filters
+  const getRoasContext = () => {
+    const parts: string[] = [];
+    if (activeAd) {
+      parts.push(`for "${getFilterLabel("ad", activeAd)}"`);
+    } else if (activeCampaign) {
+      parts.push(`in ${getFilterLabel("campaign", activeCampaign)}`);
+    } else if (activeProduct) {
+      parts.push(`on ${getFilterLabel("product", activeProduct)}`);
+    } else if (activeCategory) {
+      parts.push(`in ${activeCategory}`);
+    }
+    if (activePlatform) {
+      parts.push(`on ${getFilterLabel("platform", activePlatform)}`);
+    }
+    return parts.length > 0 ? ` ${parts.join(" ")}` : "";
   };
 
   const roasStatus = getRoasStatus(filteredData.roas);
@@ -1672,8 +1697,7 @@ export default function AnalyticsPage() {
           <div>
             <div className="font-semibold text-gray-900">{roasStatus.title}</div>
             <div className="text-sm text-gray-600">
-              For every $1 spent on ads, you're making ${filteredData.roas.toFixed(1)} back
-              {activeProduct || activeCategory ? ` on ${activeProduct ? getFilterLabel("product", activeProduct) : activeCategory}` : ""}
+              For every $1 spent on ads, you're making ${filteredData.roas.toFixed(1)} back{getRoasContext()}
             </div>
           </div>
         </div>
