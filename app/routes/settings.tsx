@@ -153,6 +153,14 @@ export default function SettingsPage() {
   // Active section state
   const [activeSection, setActiveSection] = useState<Section>("profile");
 
+  // Read section from URL on mount
+  useEffect(() => {
+    const section = searchParams.get("section");
+    if (section && ["profile", "plan", "stores", "platforms", "brand", "budget", "notifications", "danger"].includes(section)) {
+      setActiveSection(section as Section);
+    }
+  }, [searchParams]);
+
   // -------------------------------------------------------------------------
   // PROFILE STATE (mock - no user table exists)
   // -------------------------------------------------------------------------

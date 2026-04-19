@@ -142,7 +142,7 @@ export default function Sidebar({ isCollapsed, setIsCollapsed }: { isCollapsed: 
             </div>
             <p className="text-xs text-white/80 mb-3">Unlock unlimited ads and advanced analytics</p>
             <button
-              onClick={() => navigate("/settings?section=plan-billing")}
+              onClick={() => navigate("/settings?section=plan")}
               className="w-full py-2 bg-white/20 hover:bg-white/30 rounded-lg text-sm font-medium transition"
             >
               Learn More
