@@ -87,22 +87,28 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     const ads = result.results.map((ad: any) => {
       const mockData = generateMockMetrics(ad.id);
 
-      // Map status - the API uses 'inbox' but we need to show meaningful statuses
+      // Map status - normalize various status values
       let displayStatus = ad.status;
       if (ad.status === 'inbox') displayStatus = 'ready';
+      if (ad.status === 'generating') displayStatus = 'processing';
+
+      // Handle both old schema (ad_headline, thumbnail_url) and new schema (headline, image_url)
+      const headline = ad.headline || ad.ad_headline || 'Untitled Ad';
+      const imageUrl = ad.image_url || ad.thumbnail_url || ad.product_image;
+      const format = ad.format === 'square' || ad.video_style === 'static_image' ? 'static' : 'carousel';
 
       return {
         id: ad.id,
         storeId: ad.store_id,
         productId: ad.product_id,
-        title: ad.title || ad.ad_headline || 'Untitled Ad',
-        headline: ad.ad_headline,
-        primaryText: ad.ad_primary_text,
-        description: ad.ad_description,
-        cta: ad.ad_cta_button,
-        imageUrl: ad.thumbnail_url || ad.product_image,
+        title: ad.product_title || headline,
+        headline: headline,
+        primaryText: ad.primary_text || ad.ad_primary_text,
+        description: ad.description || ad.ad_description,
+        cta: ad.call_to_action || ad.ad_cta_button,
+        imageUrl: imageUrl,
         status: displayStatus,
-        format: ad.video_style === 'static_image' ? 'static' : 'carousel',
+        format: format,
         creativeStrategy: ad.creative_strategy,
         createdAt: ad.created_at,
         updatedAt: ad.updated_at,
