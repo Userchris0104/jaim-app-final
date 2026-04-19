@@ -741,7 +741,10 @@ export default function DashboardPage() {
                         <div className="text-xs text-gray-500 uppercase">CTR</div>
                       </div>
                       <div className="col-span-3 text-center pt-2 border-t border-gray-200">
-                        <button className="text-violet-600 text-sm font-medium hover:text-violet-700 flex items-center gap-1 mx-auto">
+                        <button
+                          onClick={() => navigate(`/analytics?platform=${platform.name.toLowerCase()}`)}
+                          className="text-violet-600 text-sm font-medium hover:text-violet-700 flex items-center gap-1 mx-auto"
+                        >
                           View Full Report
                           <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />

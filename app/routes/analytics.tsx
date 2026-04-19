@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from "react";
+import { useSearchParams } from "react-router";
 
 // Types
 interface Product {
@@ -1095,11 +1096,22 @@ function DetailedReportModal({
 }
 
 export default function AnalyticsPage() {
+  // URL params
+  const [searchParams] = useSearchParams();
+
   // Filter panel state
   const [filterOpen, setFilterOpen] = useState(false);
   const [activeProduct, setActiveProduct] = useState("");
   const [activeCategory, setActiveCategory] = useState("");
   const [activePlatform, setActivePlatform] = useState("");
+
+  // Read platform filter from URL on mount
+  useEffect(() => {
+    const platform = searchParams.get("platform");
+    if (platform && ["tiktok", "instagram", "facebook"].includes(platform)) {
+      setActivePlatform(platform);
+    }
+  }, [searchParams]);
   const [activeStatus, setActiveStatus] = useState("");
   const [activeAd, setActiveAd] = useState("");
   const [activeCampaign, setActiveCampaign] = useState("");
