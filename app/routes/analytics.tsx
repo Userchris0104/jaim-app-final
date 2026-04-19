@@ -8,6 +8,18 @@ interface Product {
   imageUrl?: string;
 }
 
+interface Ad {
+  id: string;
+  title: string;
+  headline: string;
+  campaign: { id: string; name: string };
+}
+
+interface Campaign {
+  id: string;
+  name: string;
+}
+
 interface FilteredData {
   revenue: number;
   spend: number;
@@ -67,11 +79,14 @@ function getMockDataForFilters(
   activeProduct: string,
   activeCategory: string,
   activePlatform: string,
+  activeAd: string,
+  activeCampaign: string,
   timeRange: string,
-  products: Product[]
+  products: Product[],
+  ads: Ad[]
 ): FilteredData {
   // Create seed from filter state
-  const seed = `${activeProduct}-${activeCategory}-${activePlatform}-${timeRange}`;
+  const seed = `${activeProduct}-${activeCategory}-${activePlatform}-${activeAd}-${activeCampaign}-${timeRange}`;
   const random = seedRandom(seed);
 
   // Base values that change based on filters
@@ -150,6 +165,29 @@ function getMockDataForFilters(
       baseCpa = 9.20;
       baseRoas = 4.1;
     }
+  }
+
+  // Adjust based on specific ad filter
+  if (activeAd) {
+    const ad = ads.find(a => a.id === activeAd);
+    if (ad) {
+      // Single ad shows smaller, focused metrics
+      baseRevenue = Math.floor(500 + random() * 1500);
+      baseImpressions = Math.floor(5000 + random() * 15000);
+      baseConversions = Math.floor(8 + random() * 25);
+      baseCpa = 6 + random() * 6;
+      baseRoas = 3 + random() * 3;
+    }
+  }
+
+  // Adjust based on campaign filter
+  if (activeCampaign) {
+    // Campaign shows aggregated metrics for all ads in campaign
+    baseRevenue = Math.floor(2000 + random() * 4000);
+    baseImpressions = Math.floor(25000 + random() * 40000);
+    baseConversions = Math.floor(40 + random() * 80);
+    baseCpa = 7 + random() * 4;
+    baseRoas = 4 + random() * 2.5;
   }
 
   // Adjust based on time range
@@ -650,6 +688,365 @@ function AdReportPanel({
   );
 }
 
+// Detailed Report Modal Component
+function DetailedReportModal({
+  isOpen,
+  onClose,
+  data,
+  timeRange,
+  activeMetric,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  data: FilteredData;
+  timeRange: string;
+  activeMetric: string;
+}) {
+  const [isClosing, setIsClosing] = useState(false);
+
+  const handleClose = () => {
+    setIsClosing(true);
+    setTimeout(() => {
+      setIsClosing(false);
+      onClose();
+    }, 150);
+  };
+
+  // Handle escape key
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && isOpen) {
+        handleClose();
+      }
+    };
+    document.addEventListener("keydown", handleEscape);
+    return () => document.removeEventListener("keydown", handleEscape);
+  }, [isOpen]);
+
+  // Prevent body scroll when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = "hidden";
+    } else {
+      document.body.style.overflow = "";
+    }
+    return () => {
+      document.body.style.overflow = "";
+    };
+  }, [isOpen]);
+
+  if (!isOpen) return null;
+
+  const timeRangeLabel = timeRange === "7" ? "7 days" : timeRange === "90" ? "90 days" : "30 days";
+  const profit = data.revenue - data.spend;
+  const profitMargin = data.spend > 0 ? ((profit / data.revenue) * 100).toFixed(1) : "0";
+
+  // MOCK: Daily breakdown data - Replace with real API data when available
+  const dailyBreakdown = [
+    { day: "Monday", revenue: 935, spend: 180, roas: 5.2, conversions: 21, clicks: 342 },
+    { day: "Tuesday", revenue: 853, spend: 165, roas: 5.2, conversions: 19, clicks: 289 },
+    { day: "Wednesday", revenue: 1199, spend: 220, roas: 5.5, conversions: 28, clicks: 456 },
+    { day: "Thursday", revenue: 579, spend: 145, roas: 4.0, conversions: 13, clicks: 198 },
+    { day: "Friday", revenue: 1138, spend: 195, roas: 5.8, conversions: 26, clicks: 412 },
+    { day: "Saturday", revenue: 967, spend: 175, roas: 5.5, conversions: 22, clicks: 378 },
+    { day: "Sunday", revenue: 1133, spend: 190, roas: 6.0, conversions: 24, clicks: 401 },
+  ];
+
+  return (
+    <>
+      {/* Overlay */}
+      <div
+        className={`fixed inset-0 z-40 transition-opacity duration-200 ${
+          isClosing ? "opacity-0" : "opacity-100"
+        }`}
+        style={{ backgroundColor: "rgba(0, 0, 0, 0.4)" }}
+        onClick={handleClose}
+      />
+
+      {/* Modal */}
+      <div
+        className={`fixed top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[680px] max-h-[85vh] bg-white rounded-2xl shadow-2xl z-50 flex flex-col transition-all duration-200 ease-out ${
+          isClosing ? "opacity-0 scale-95" : "opacity-100 scale-100"
+        }`}
+      >
+        {/* Header */}
+        <div className="flex items-start justify-between p-5 border-b border-gray-100">
+          <div>
+            <h2 className="text-lg font-bold text-gray-900">Performance Report</h2>
+            <p className="text-sm text-gray-500 mt-0.5">Detailed analytics for the last {timeRangeLabel}</p>
+          </div>
+          <button
+            onClick={handleClose}
+            className="p-2 hover:bg-gray-100 rounded-lg transition"
+          >
+            <svg className="w-5 h-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Scrollable Content */}
+        <div className="flex-1 overflow-y-auto p-5 space-y-6">
+          {/* Executive Summary */}
+          <div className="bg-gradient-to-br from-violet-50 to-violet-100/50 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-violet-900 mb-2">Executive Summary</h3>
+            <p className="text-sm text-violet-800 leading-relaxed">
+              Over the last {timeRangeLabel}, your ad campaigns generated <span className="font-bold">${data.revenue.toLocaleString()}</span> in revenue
+              from a <span className="font-bold">${data.spend.toLocaleString()}</span> ad spend, resulting in
+              a <span className="font-bold">{data.roas}x ROAS</span> and <span className="font-bold">${profit.toLocaleString()}</span> profit
+              ({profitMargin}% margin). You acquired <span className="font-bold">{data.conversions}</span> customers
+              at an average cost of <span className="font-bold">${data.cpa.toFixed(2)}</span> per acquisition.
+            </p>
+          </div>
+
+          {/* Key Metrics Grid */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Key Metrics</h3>
+            <div className="grid grid-cols-4 gap-3">
+              <div className="bg-violet-50 border border-violet-100 rounded-xl p-4">
+                <div className="text-xs text-violet-600 mb-1">Revenue</div>
+                <div className="text-xl font-bold text-violet-900">${data.revenue.toLocaleString()}</div>
+                <div className="flex items-center gap-1 mt-1">
+                  <svg className="w-3 h-3 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-xs text-emerald-600">+12%</span>
+                </div>
+              </div>
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+                <div className="text-xs text-gray-500 mb-1">ROAS</div>
+                <div className={`text-xl font-bold ${data.roas >= 3 ? "text-emerald-600" : data.roas < 2 ? "text-red-600" : "text-gray-900"}`}>
+                  {data.roas}x
+                </div>
+                <div className="flex items-center gap-1 mt-1">
+                  <svg className="w-3 h-3 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-xs text-emerald-600">+8%</span>
+                </div>
+              </div>
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+                <div className="text-xs text-gray-500 mb-1">Impressions</div>
+                <div className="text-xl font-bold text-gray-900">{(data.impressions / 1000).toFixed(1)}k</div>
+                <div className="flex items-center gap-1 mt-1">
+                  <svg className="w-3 h-3 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-xs text-emerald-600">+15%</span>
+                </div>
+              </div>
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+                <div className="text-xs text-gray-500 mb-1">Conversions</div>
+                <div className="text-xl font-bold text-gray-900">{data.conversions}</div>
+                <div className="flex items-center gap-1 mt-1">
+                  <svg className="w-3 h-3 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-xs text-emerald-600">+10%</span>
+                </div>
+              </div>
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+                <div className="text-xs text-gray-500 mb-1">CTR</div>
+                <div className="text-xl font-bold text-gray-900">{data.ctr.toFixed(2)}%</div>
+                <div className="flex items-center gap-1 mt-1">
+                  <svg className="w-3 h-3 text-red-500 rotate-180" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-xs text-red-600">-2%</span>
+                </div>
+              </div>
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+                <div className="text-xs text-gray-500 mb-1">CPA</div>
+                <div className="text-xl font-bold text-gray-900">${data.cpa.toFixed(2)}</div>
+                <div className="flex items-center gap-1 mt-1">
+                  <svg className="w-3 h-3 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-xs text-emerald-600">-5%</span>
+                </div>
+              </div>
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+                <div className="text-xs text-gray-500 mb-1">Clicks</div>
+                <div className="text-xl font-bold text-gray-900">{data.clicks.toLocaleString()}</div>
+                <div className="flex items-center gap-1 mt-1">
+                  <svg className="w-3 h-3 text-emerald-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-xs text-emerald-600">+18%</span>
+                </div>
+              </div>
+              <div className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+                <div className="text-xs text-gray-500 mb-1">Ad Spend</div>
+                <div className="text-xl font-bold text-gray-900">${data.spend.toLocaleString()}</div>
+                <div className="flex items-center gap-1 mt-1">
+                  <svg className="w-3 h-3 text-amber-500" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M5.293 9.707a1 1 0 010-1.414l4-4a1 1 0 011.414 0l4 4a1 1 0 01-1.414 1.414L11 7.414V15a1 1 0 11-2 0V7.414L6.707 9.707a1 1 0 01-1.414 0z" clipRule="evenodd" />
+                  </svg>
+                  <span className="text-xs text-amber-600">+6%</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Daily Breakdown Table */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Daily Breakdown</h3>
+            <div className="border border-gray-100 rounded-xl overflow-hidden">
+              <table className="w-full text-sm">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Day</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Revenue</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Spend</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">ROAS</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Conv.</th>
+                    <th className="text-right px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Clicks</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {dailyBreakdown.map((day, i) => (
+                    <tr key={day.day} className={i % 2 === 0 ? "bg-white" : "bg-gray-50/50"}>
+                      <td className="px-4 py-3 font-medium text-gray-900">{day.day}</td>
+                      <td className="px-4 py-3 text-right text-gray-900">${day.revenue.toLocaleString()}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">${day.spend}</td>
+                      <td className="px-4 py-3 text-right">
+                        <span className={day.roas >= 5 ? "text-emerald-600 font-medium" : "text-gray-900"}>
+                          {day.roas}x
+                        </span>
+                      </td>
+                      <td className="px-4 py-3 text-right text-gray-900">{day.conversions}</td>
+                      <td className="px-4 py-3 text-right text-gray-600">{day.clicks}</td>
+                    </tr>
+                  ))}
+                </tbody>
+                <tfoot className="bg-violet-50">
+                  <tr>
+                    <td className="px-4 py-3 font-semibold text-violet-900">Total</td>
+                    <td className="px-4 py-3 text-right font-semibold text-violet-900">
+                      ${dailyBreakdown.reduce((sum, d) => sum + d.revenue, 0).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-violet-900">
+                      ${dailyBreakdown.reduce((sum, d) => sum + d.spend, 0).toLocaleString()}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-violet-900">{data.roas}x</td>
+                    <td className="px-4 py-3 text-right font-semibold text-violet-900">
+                      {dailyBreakdown.reduce((sum, d) => sum + d.conversions, 0)}
+                    </td>
+                    <td className="px-4 py-3 text-right font-semibold text-violet-900">
+                      {dailyBreakdown.reduce((sum, d) => sum + d.clicks, 0).toLocaleString()}
+                    </td>
+                  </tr>
+                </tfoot>
+              </table>
+            </div>
+          </div>
+
+          {/* Platform Performance Comparison */}
+          <div>
+            <h3 className="text-sm font-semibold text-gray-900 mb-3">Platform Comparison</h3>
+            <div className="grid grid-cols-3 gap-3">
+              {data.platformData.map((platform) => {
+                const platformProfit = platform.revenue - platform.spend;
+                return (
+                  <div key={platform.platform} className="bg-gray-50 border border-gray-100 rounded-xl p-4">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div
+                        className="w-8 h-8 rounded-lg flex items-center justify-center text-white"
+                        style={{
+                          backgroundColor: platform.platform === "tiktok" ? "#000" :
+                                         platform.platform === "instagram" ? "#E4405F" : "#1877F2"
+                        }}
+                      >
+                        <span className="text-xs font-bold uppercase">{platform.platform[0]}</span>
+                      </div>
+                      <span className="font-medium text-gray-900 capitalize">{platform.platform}</span>
+                    </div>
+                    <div className="space-y-2">
+                      <div className="flex justify-between">
+                        <span className="text-xs text-gray-500">Revenue</span>
+                        <span className="text-xs font-medium text-gray-900">${platform.revenue.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-xs text-gray-500">Spend</span>
+                        <span className="text-xs font-medium text-gray-600">${platform.spend.toLocaleString()}</span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-xs text-gray-500">ROAS</span>
+                        <span className={`text-xs font-medium ${platform.roas >= 4 ? "text-emerald-600" : "text-gray-900"}`}>
+                          {platform.roas}x
+                        </span>
+                      </div>
+                      <div className="flex justify-between">
+                        <span className="text-xs text-gray-500">Profit</span>
+                        <span className={`text-xs font-medium ${platformProfit > 0 ? "text-emerald-600" : "text-red-600"}`}>
+                          ${platformProfit.toLocaleString()}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Recommendations */}
+          <div className="bg-amber-50 border border-amber-100 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-amber-900 mb-3 flex items-center gap-2">
+              <svg className="w-4 h-4" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              Recommendations
+            </h3>
+            <ul className="space-y-2">
+              <li className="flex items-start gap-2 text-sm text-amber-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 flex-shrink-0" />
+                <span>
+                  <strong>{data.platformData[0]?.platform || "TikTok"}</strong> is outperforming other platforms.
+                  Consider shifting 15-20% of budget from lower-performing channels.
+                </span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-amber-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 flex-shrink-0" />
+                <span>
+                  <strong>Wednesday</strong> shows the highest conversion rate. Schedule key campaigns to launch mid-week.
+                </span>
+              </li>
+              <li className="flex items-start gap-2 text-sm text-amber-800">
+                <span className="w-1.5 h-1.5 rounded-full bg-amber-500 mt-1.5 flex-shrink-0" />
+                <span>
+                  Your CTR is slightly below average. Consider A/B testing new creative variations to improve engagement.
+                </span>
+              </li>
+            </ul>
+          </div>
+        </div>
+
+        {/* Footer Actions */}
+        <div className="p-5 border-t border-gray-100 flex items-center justify-between">
+          <button
+            onClick={() => {
+              // MOCK: Export functionality
+              alert("Report export coming soon!");
+            }}
+            className="flex items-center gap-2 px-4 py-2 border border-gray-200 text-gray-700 rounded-lg text-sm font-medium hover:bg-gray-50 transition"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+            Export PDF
+          </button>
+          <button
+            onClick={handleClose}
+            className="px-6 py-2 bg-violet-600 text-white rounded-lg text-sm font-medium hover:bg-violet-700 transition"
+          >
+            Done
+          </button>
+        </div>
+      </div>
+    </>
+  );
+}
+
 export default function AnalyticsPage() {
   // Filter panel state
   const [filterOpen, setFilterOpen] = useState(false);
@@ -657,6 +1054,8 @@ export default function AnalyticsPage() {
   const [activeCategory, setActiveCategory] = useState("");
   const [activePlatform, setActivePlatform] = useState("");
   const [activeStatus, setActiveStatus] = useState("");
+  const [activeAd, setActiveAd] = useState("");
+  const [activeCampaign, setActiveCampaign] = useState("");
   const [timeRange, setTimeRange] = useState("30");
   const [activeMetric, setActiveMetric] = useState("revenue");
 
@@ -664,6 +1063,9 @@ export default function AnalyticsPage() {
   const [selectedAd, setSelectedAd] = useState<TopAd | null>(null);
   const [panelOpen, setPanelOpen] = useState(false);
   const [selectedAdRank, setSelectedAdRank] = useState(1);
+
+  // Detailed report modal state
+  const [detailedReportOpen, setDetailedReportOpen] = useState(false);
 
   const openPanel = (ad: TopAd, rank: number) => {
     setSelectedAd(ad);
@@ -676,28 +1078,50 @@ export default function AnalyticsPage() {
     setTimeout(() => setSelectedAd(null), 150);
   };
 
-  // Products data
+  // Products and Ads data
   const [products, setProducts] = useState<Product[]>([]);
+  const [ads, setAds] = useState<Ad[]>([]);
+  const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [loading, setLoading] = useState(true);
 
-  // Fetch products on mount
+  // Fetch products and ads on mount
   useEffect(() => {
-    const fetchProducts = async () => {
+    const fetchData = async () => {
       try {
-        const response = await fetch("/api/products");
-        if (response.ok) {
-          const data = await response.json();
+        // Fetch products and ads in parallel
+        const [productsRes, adsRes] = await Promise.all([
+          fetch("/api/products"),
+          fetch("/api/ads"),
+        ]);
+
+        if (productsRes.ok) {
+          const data = await productsRes.json();
           if (data.products) {
             setProducts(data.products);
           }
         }
+
+        if (adsRes.ok) {
+          const data = await adsRes.json();
+          if (data.ads) {
+            setAds(data.ads.map((ad: any) => ({
+              id: ad.id,
+              title: ad.title || ad.headline || "Untitled Ad",
+              headline: ad.headline || "",
+              campaign: ad.campaign || { id: "unknown", name: "Unknown Campaign" },
+            })));
+          }
+          if (data.campaigns) {
+            setCampaigns(data.campaigns);
+          }
+        }
       } catch (error) {
-        console.error("Error fetching products:", error);
+        console.error("Error fetching data:", error);
       } finally {
         setLoading(false);
       }
     };
-    fetchProducts();
+    fetchData();
   }, []);
 
   // Get unique categories (productTypes)
@@ -706,10 +1130,22 @@ export default function AnalyticsPage() {
     return Array.from(types) as string[];
   }, [products]);
 
+  // Get unique campaigns from ads (fallback if campaigns not returned by API)
+  const uniqueCampaigns = useMemo(() => {
+    if (campaigns.length > 0) return campaigns;
+    const campaignMap = new Map<string, Campaign>();
+    ads.forEach(ad => {
+      if (ad.campaign && !campaignMap.has(ad.campaign.id)) {
+        campaignMap.set(ad.campaign.id, ad.campaign);
+      }
+    });
+    return Array.from(campaignMap.values());
+  }, [ads, campaigns]);
+
   // Active filter count for badge
   const filterCount = useMemo(() => {
-    return [activeProduct, activeCategory, activePlatform, activeStatus].filter(Boolean).length;
-  }, [activeProduct, activeCategory, activePlatform, activeStatus]);
+    return [activeProduct, activeCategory, activePlatform, activeStatus, activeAd, activeCampaign].filter(Boolean).length;
+  }, [activeProduct, activeCategory, activePlatform, activeStatus, activeAd, activeCampaign]);
 
   // Filtered data based on current filters
   const filteredData = useMemo(() => {
@@ -717,10 +1153,13 @@ export default function AnalyticsPage() {
       activeProduct,
       activeCategory,
       activePlatform,
+      activeAd,
+      activeCampaign,
       timeRange,
-      products
+      products,
+      ads
     );
-  }, [activeProduct, activeCategory, activePlatform, timeRange, products]);
+  }, [activeProduct, activeCategory, activePlatform, activeAd, activeCampaign, timeRange, products, ads]);
 
   // Handle product filter (clears category)
   const handleProductChange = (productId: string) => {
@@ -740,6 +1179,8 @@ export default function AnalyticsPage() {
     setActiveCategory("");
     setActivePlatform("");
     setActiveStatus("");
+    setActiveAd("");
+    setActiveCampaign("");
   };
 
   // Get filter label for display
@@ -749,6 +1190,13 @@ export default function AnalyticsPage() {
     }
     if (type === "platform") {
       return value.charAt(0).toUpperCase() + value.slice(1);
+    }
+    if (type === "ad") {
+      const ad = ads.find(a => a.id === value);
+      return ad?.title || ad?.headline || value;
+    }
+    if (type === "campaign") {
+      return uniqueCampaigns.find(c => c.id === value)?.name || value;
     }
     return value;
   };
@@ -1003,6 +1451,46 @@ export default function AnalyticsPage() {
               </select>
             </div>
 
+            {/* Divider */}
+            <div className="h-10 w-px bg-gray-200" />
+
+            {/* Ad Dropdown */}
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-500 mb-1">Ad</label>
+              <select
+                value={activeAd}
+                onChange={(e) => setActiveAd(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+              >
+                <option value="">All ads</option>
+                {ads.map((ad) => (
+                  <option key={ad.id} value={ad.id}>
+                    {ad.title || ad.headline || "Untitled Ad"}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {/* Divider */}
+            <div className="h-10 w-px bg-gray-200" />
+
+            {/* Campaign Dropdown */}
+            <div className="flex-1">
+              <label className="block text-xs font-medium text-gray-500 mb-1">Campaign</label>
+              <select
+                value={activeCampaign}
+                onChange={(e) => setActiveCampaign(e.target.value)}
+                className="w-full px-3 py-2 bg-gray-50 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-violet-500"
+              >
+                <option value="">All campaigns</option>
+                {uniqueCampaigns.map((campaign) => (
+                  <option key={campaign.id} value={campaign.id}>
+                    {campaign.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+
             {/* Clear All */}
             {filterCount > 0 && (
               <>
@@ -1045,6 +1533,16 @@ export default function AnalyticsPage() {
             {activeStatus && (
               <span className="px-3 py-1 bg-violet-100 text-violet-700 rounded-full text-sm font-medium">
                 {activeStatus === "active" ? "Active only" : "Completed"}
+              </span>
+            )}
+            {activeAd && (
+              <span className="px-3 py-1 bg-violet-100 text-violet-700 rounded-full text-sm font-medium">
+                Ad: {getFilterLabel("ad", activeAd)}
+              </span>
+            )}
+            {activeCampaign && (
+              <span className="px-3 py-1 bg-violet-100 text-violet-700 rounded-full text-sm font-medium">
+                {getFilterLabel("campaign", activeCampaign)}
               </span>
             )}
           </div>
@@ -1265,7 +1763,10 @@ export default function AnalyticsPage() {
                 Weekly total: ${chartTotal.toLocaleString()} · Best day: {bestDay.day} — ${bestDay.value.toLocaleString()}
               </span>
             </div>
-            <button className="text-sm text-violet-600 hover:text-violet-700 font-medium">
+            <button
+              onClick={() => setDetailedReportOpen(true)}
+              className="text-sm text-violet-600 hover:text-violet-700 font-medium"
+            >
               View detailed report →
             </button>
           </div>
@@ -1530,6 +2031,15 @@ export default function AnalyticsPage() {
         isOpen={panelOpen}
         onClose={closePanel}
         rank={selectedAdRank}
+      />
+
+      {/* Detailed Report Modal */}
+      <DetailedReportModal
+        isOpen={detailedReportOpen}
+        onClose={() => setDetailedReportOpen(false)}
+        data={filteredData}
+        timeRange={timeRange}
+        activeMetric={activeMetric}
       />
     </div>
   );
