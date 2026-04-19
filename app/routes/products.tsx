@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useSearchParams } from "react-router";
 
 interface Product {
@@ -356,6 +356,27 @@ function detectGender(product: Product): "men" | "women" | "unisex" {
   return "unisex";
 }
 
+// Check if a product has any gender signal (for filter visibility)
+function hasGenderSignal(product: Product): boolean {
+  const genderKeywords = ["men", "male", "mens", "man", "women", "female", "womens", "woman"];
+
+  // Check tags
+  const tags = product.tags
+    ? product.tags.split(",").map((t) => t.trim().toLowerCase())
+    : [];
+
+  const hasTagSignal = tags.some((tag) =>
+    genderKeywords.some((kw) => tag === kw || tag.includes(kw))
+  );
+  if (hasTagSignal) return true;
+
+  // Check title
+  const titleLower = product.title.toLowerCase();
+  const hasTitleSignal = genderKeywords.some((kw) => titleLower.includes(kw));
+
+  return hasTitleSignal;
+}
+
 export default function ProductsPage() {
   const [searchParams] = useSearchParams();
   const [data, setData] = useState<ProductsData | null>(null);
@@ -533,6 +554,24 @@ export default function ProductsPage() {
         }, new Map<string, number>())
       ).sort((a, b) => a[0].localeCompare(b[0]))
     : [];
+
+  // Calculate which filters are relevant for this store's products
+  const relevantFilters = useMemo(() => {
+    const products = data?.products ?? [];
+    if (products.length === 0) {
+      return { showGender: false, showCategories: false };
+    }
+
+    // Gender filter: show only if >20% of products have gender signals
+    const productsWithGender = products.filter(hasGenderSignal).length;
+    const showGender = productsWithGender / products.length > 0.2;
+
+    // Category filter: show only if 2+ unique productTypes
+    const uniqueTypes = new Set(products.map((p) => p.productType || "Uncategorized"));
+    const showCategories = uniqueTypes.size > 1;
+
+    return { showGender, showCategories };
+  }, [data?.products]);
 
   // Filter products based on all active filters
   const filteredProducts = data?.products?.filter((product) => {
@@ -739,61 +778,65 @@ export default function ProductsPage() {
             <>
               {/* Filter Bar */}
               <div className="bg-white rounded-2xl border border-gray-100 p-4 mb-6 space-y-4">
-                {/* Row 1: Category Pills */}
-                <div className="flex items-center gap-2 overflow-x-auto pb-2 -mb-2 scrollbar-hide">
-                  <button
-                    onClick={() => setSelectedCategory("all")}
-                    className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                      selectedCategory === "all"
-                        ? "bg-violet-600 text-white"
-                        : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                    }`}
-                  >
-                    All ({data.total})
-                  </button>
-                  {categories.map(([category, count]) => (
+                {/* Row 1: Category Pills - only show if multiple categories */}
+                {relevantFilters.showCategories && (
+                  <div className="flex items-center gap-2 overflow-x-auto pb-2 -mb-2 scrollbar-hide">
                     <button
-                      key={category}
-                      onClick={() => setSelectedCategory(category)}
+                      onClick={() => setSelectedCategory("all")}
                       className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
-                        selectedCategory === category
+                        selectedCategory === "all"
                           ? "bg-violet-600 text-white"
                           : "bg-gray-100 text-gray-700 hover:bg-gray-200"
                       }`}
                     >
-                      {category} ({count})
+                      All ({data.total})
                     </button>
-                  ))}
-                </div>
+                    {categories.map(([category, count]) => (
+                      <button
+                        key={category}
+                        onClick={() => setSelectedCategory(category)}
+                        className={`px-4 py-2 rounded-full text-sm font-medium whitespace-nowrap transition-colors ${
+                          selectedCategory === category
+                            ? "bg-violet-600 text-white"
+                            : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                        }`}
+                      >
+                        {category} ({count})
+                      </button>
+                    ))}
+                  </div>
+                )}
 
                 {/* Row 2: Attribute Filters + Search */}
                 <div className="flex flex-wrap items-center gap-3">
-                  {/* Gender Filter */}
-                  <div className="relative">
-                    <select
-                      value={selectedGender}
-                      onChange={(e) => setSelectedGender(e.target.value)}
-                      className={`appearance-none pl-4 pr-10 py-2 rounded-xl text-sm font-medium border transition-colors cursor-pointer ${
-                        selectedGender !== "all"
-                          ? "bg-violet-50 border-violet-200 text-violet-700"
-                          : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
-                      }`}
-                    >
-                      {GENDER_OPTIONS.map((option) => (
-                        <option key={option.value} value={option.value}>
-                          {option.label}
-                        </option>
-                      ))}
-                    </select>
-                    <svg
-                      className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </div>
+                  {/* Gender Filter - only show if >20% of products have gender signals */}
+                  {relevantFilters.showGender && (
+                    <div className="relative">
+                      <select
+                        value={selectedGender}
+                        onChange={(e) => setSelectedGender(e.target.value)}
+                        className={`appearance-none pl-4 pr-10 py-2 rounded-xl text-sm font-medium border transition-colors cursor-pointer ${
+                          selectedGender !== "all"
+                            ? "bg-violet-50 border-violet-200 text-violet-700"
+                            : "bg-gray-50 border-gray-200 text-gray-700 hover:bg-gray-100"
+                        }`}
+                      >
+                        {GENDER_OPTIONS.map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </select>
+                      <svg
+                        className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-500 pointer-events-none"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+                      </svg>
+                    </div>
+                  )}
 
                   {/* Price Range Filter */}
                   <div className="relative">
