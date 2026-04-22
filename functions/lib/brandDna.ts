@@ -168,12 +168,12 @@ Return this exact JSON structure:
   },
   "store_category": "${storeCategory}",
   "model_direction": {
-    "use_models": false,
+    "use_models": ${storeCategory === 'FASHION' ? 'true (REQUIRED for FASHION stores)' : 'false'},
     "gender_default": "MALE|FEMALE|NEUTRAL|MIXED",
     "age_range": "18-25|25-35|35-50|50+|mixed",
-    "style_archetype": "two sentences describing ideal model look",
+    "style_archetype": "two sentences describing ideal model look for this brand",
     "expression": "confident|candid|aspirational|approachable|intense|joyful",
-    "setting_preference": "one sentence"
+    "setting_preference": "one sentence describing ideal model setting"
   },
   "scene_templates": {
     "variant_a_clean": {
@@ -264,6 +264,19 @@ Return this exact JSON structure:
     dna.brand_name = dna.brand_name || store.store_name || 'Brand';
     dna.analysed_at = dna.analysed_at || new Date().toISOString();
     dna.version = (store.brand_dna_version || 0) + 1;
+
+    // Use store's configured category if available (override AI detection)
+    const effectiveCategory = (store.store_category as StoreCategory) || dna.store_category;
+    if (effectiveCategory && effectiveCategory !== dna.store_category) {
+      console.log(`[BRAND_DNA] Using configured category ${effectiveCategory} instead of detected ${dna.store_category}`);
+      dna.store_category = effectiveCategory;
+    }
+
+    // FASHION stores MUST have models enabled
+    if (dna.store_category === 'FASHION') {
+      dna.model_direction.use_models = true;
+      console.log('[BRAND_DNA] Forcing use_models=true for FASHION store');
+    }
 
     // Ensure scene prompts include empty center zone instruction
     validateScenePrompts(dna);
@@ -419,6 +432,9 @@ function createFallbackDNA(store: StoreRecord): BrandDNA {
     ? getFashionSceneTemplates(centerZone)
     : getDefaultSceneTemplates(centerZone);
 
+  // Enable models for FASHION stores
+  const useModels = storeCategory === 'FASHION';
+
   return {
     brand_name: store.store_name || 'Brand',
     analysed_at: new Date().toISOString(),
@@ -441,12 +457,16 @@ function createFallbackDNA(store: StoreRecord): BrandDNA {
     },
     store_category: storeCategory,
     model_direction: {
-      use_models: false,
+      use_models: useModels,
       gender_default: 'NEUTRAL',
       age_range: '25-35',
-      style_archetype: 'Modern and approachable. Clean aesthetic.',
+      style_archetype: useModels
+        ? 'Contemporary urban style. Clean minimal fashion aesthetic with effortless confidence.'
+        : 'Modern and approachable. Clean aesthetic.',
       expression: 'confident',
-      setting_preference: 'Studio or minimal lifestyle setting'
+      setting_preference: useModels
+        ? 'Editorial fashion setting with dramatic lighting'
+        : 'Studio or minimal lifestyle setting'
     },
     scene_templates: sceneTemplates,
     copy_framework: {

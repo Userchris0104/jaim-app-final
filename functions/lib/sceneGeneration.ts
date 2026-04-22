@@ -36,6 +36,9 @@ const MAX_RETRIES = 2;
 // Empty center zone instruction that MUST be in every prompt
 const CENTER_ZONE_INSTRUCTION = `Leave a clearly empty rectangular space in the center of the frame approximately 60% of the composition. Do not generate any product, object, or physical item in that center zone. Generate only the background environment.`;
 
+// Model scene instruction for fashion wearables - model to the side, product space in center
+const MODEL_SCENE_INSTRUCTION = `Include a stylish model positioned to the RIGHT side of the frame, occupying only the right 30% of the composition. The model should be partially visible (shoulder, arm, or profile view) looking toward or gesturing toward the CENTER where a product will be placed. Leave the center and left portions of the frame COMPLETELY EMPTY for product placement. Do not show the model holding or wearing any product.`;
+
 // ===========================================
 // MAIN GENERATION FUNCTION
 // ===========================================
@@ -43,6 +46,7 @@ const CENTER_ZONE_INSTRUCTION = `Leave a clearly empty rectangular space in the 
 /**
  * Generate a scene background using Nano Banana 2.
  * The scene will have an empty center zone for product placement.
+ * For FASHION wearables on Variant C, includes a model positioned to the side.
  */
 export async function generateScene(
   variant: AdVariant,
@@ -54,10 +58,14 @@ export async function generateScene(
   // Get scene template from Brand DNA
   const template = getSceneTemplate(brandDna, variant);
 
-  // Build the final prompt
-  const prompt = buildScenePrompt(template.prompt, productStyle, brandDna);
+  // Determine if this should be a model scene
+  // Model scenes: FASHION category + wearable product + Variant C (editorial)
+  const shouldIncludeModel = shouldUseModelScene(variant, brandDna, productStyle);
 
-  console.log('[SCENE_GEN] Generating scene for variant', variant);
+  // Build the final prompt
+  const prompt = buildScenePrompt(template.prompt, productStyle, brandDna, shouldIncludeModel);
+
+  console.log('[SCENE_GEN] Generating scene for variant', variant, shouldIncludeModel ? '(with model)' : '');
   console.log('[SCENE_GEN] Prompt:', prompt.slice(0, 150) + '...');
 
   // Try Nano Banana 2 with retries
@@ -251,17 +259,72 @@ async function generateWithFlux(
 }
 
 // ===========================================
+// MODEL SCENE DETECTION
+// ===========================================
+
+/**
+ * Determine if a scene should include a model.
+ * Models are used for FASHION stores + wearable products + Variant C (editorial).
+ */
+function shouldUseModelScene(
+  variant: AdVariant,
+  brandDna: BrandDNA,
+  productStyle: ProductStyleProfile | null
+): boolean {
+  // Only Variant C (editorial) gets models
+  if (variant !== 'C') {
+    return false;
+  }
+
+  // Must be FASHION category
+  if (brandDna.store_category !== 'FASHION') {
+    return false;
+  }
+
+  // Product must be wearable
+  if (!productStyle?.classification.is_wearable) {
+    return false;
+  }
+
+  // Brand DNA must allow models
+  if (!brandDna.model_direction.use_models) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
+ * Build model description based on brand DNA and product style.
+ */
+function buildModelDescription(
+  brandDna: BrandDNA,
+  productStyle: ProductStyleProfile | null
+): string {
+  const gender = productStyle?.classification.gender || brandDna.model_direction.gender_default;
+  const ageRange = brandDna.model_direction.age_range;
+  const expression = brandDna.model_direction.expression;
+  const archetype = brandDna.model_direction.style_archetype;
+
+  const genderDesc = gender === 'MALE' ? 'male' : gender === 'FEMALE' ? 'female' : 'androgynous';
+
+  return `A stylish ${genderDesc} model, age ${ageRange}, with a ${expression} expression. ${archetype}`;
+}
+
+// ===========================================
 // PROMPT BUILDING
 // ===========================================
 
 /**
  * Build the final scene prompt with all context.
  * Ensures empty center zone instruction is always included.
+ * For model scenes, adds a model positioned to the side.
  */
 function buildScenePrompt(
   basePrompt: string,
   productStyle: ProductStyleProfile | null,
-  brandDna: BrandDNA
+  brandDna: BrandDNA,
+  includeModel: boolean = false
 ): string {
   const parts: string[] = [];
 
@@ -282,13 +345,21 @@ function buildScenePrompt(
     }
   }
 
-  // Ensure empty center zone instruction is present
-  const prompt = parts.join('. ');
-  if (!prompt.includes('empty') || !prompt.includes('center')) {
-    return `${prompt}. ${CENTER_ZONE_INSTRUCTION}`;
+  // Add model for fashion editorial scenes
+  if (includeModel) {
+    const modelDesc = buildModelDescription(brandDna, productStyle);
+    parts.push(modelDesc);
+    parts.push(MODEL_SCENE_INSTRUCTION);
+    console.log('[SCENE_GEN] Adding model to scene:', modelDesc.slice(0, 80) + '...');
+  } else {
+    // Ensure empty center zone instruction for non-model scenes
+    const prompt = parts.join('. ');
+    if (!prompt.includes('empty') || !prompt.includes('center')) {
+      parts.push(CENTER_ZONE_INSTRUCTION);
+    }
   }
 
-  return prompt;
+  return parts.join('. ');
 }
 
 // ===========================================
