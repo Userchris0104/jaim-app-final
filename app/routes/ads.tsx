@@ -277,12 +277,25 @@ function AdCard({
               alt="Scene background"
               className="absolute inset-0 w-full h-full object-cover"
             />
-            <img
-              src={ad.productImageUrl}
-              alt={ad.title}
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[55%] h-[55%] object-contain"
-              style={{ filter: 'drop-shadow(0 8px 24px rgba(0, 0, 0, 0.25))' }}
-            />
+            {/* Product container with ground shadow */}
+            <div
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[55%] h-[55%] flex flex-col items-center"
+            >
+              <img
+                src={ad.productImageUrl}
+                alt={ad.title}
+                className="w-full h-[90%] object-contain"
+                style={{ filter: 'drop-shadow(0 4px 16px rgba(0, 0, 0, 0.3))' }}
+              />
+              {/* Ground shadow ellipse */}
+              <div
+                className="w-[60%] h-2 -mt-1"
+                style={{
+                  background: 'radial-gradient(ellipse, rgba(0,0,0,0.25) 0%, transparent 70%)',
+                  filter: 'blur(3px)'
+                }}
+              />
+            </div>
           </>
         ) : /* FASHN or Bria: Single composited image */
         (ad.compositingMethod === 'fashn_model' || ad.compositingMethod === 'bria_product_shot') && ad.imageUrl ? (
@@ -461,13 +474,25 @@ function AdPreviewModal({
                 alt="Scene background"
                 className="absolute inset-0 w-full h-full object-cover"
               />
-              {/* Product overlay - centered with drop shadow */}
-              <img
-                src={ad.productImageUrl}
-                alt={ad.title}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[55%] h-[55%] object-contain"
-                style={{ filter: 'drop-shadow(0 8px 24px rgba(0, 0, 0, 0.25))' }}
-              />
+              {/* Product container with ground shadow */}
+              <div
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[55%] h-[55%] flex flex-col items-center"
+              >
+                <img
+                  src={ad.productImageUrl}
+                  alt={ad.title}
+                  className="w-full h-[90%] object-contain"
+                  style={{ filter: 'drop-shadow(0 4px 16px rgba(0, 0, 0, 0.3))' }}
+                />
+                {/* Ground shadow ellipse */}
+                <div
+                  className="w-[60%] h-2 -mt-1"
+                  style={{
+                    background: 'radial-gradient(ellipse, rgba(0,0,0,0.25) 0%, transparent 70%)',
+                    filter: 'blur(3px)'
+                  }}
+                />
+              </div>
             </>
           ) : ad.imageUrl ? (
             <img
