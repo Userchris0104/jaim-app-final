@@ -354,32 +354,32 @@ function validateScenePrompts(dna: BrandDNA): void {
 /**
  * Get FASHION-specific scene templates with highly distinct prompts.
  */
-function getFashionSceneTemplates(centerZone: string) {
+function getFashionSceneTemplates(centerZone: string): BrandDNA['scene_templates'] {
   return {
     variant_a_clean: {
-      direction: 'minimal',
+      direction: 'minimal' as const,
       nano_banana_prompt: `A minimalist fashion photography studio. Pure white seamless paper backdrop filling the entire frame. Soft diffused lighting from the left side. Clean polished concrete floor. No props, no furniture, no distractions. Scandinavian minimal aesthetic with subtle shadows. ${centerZone} Commercial photography quality.`,
       photoroom_config: {
-        shadow_mode: 'ai-soft',
-        lighting_mode: 'ai-auto',
+        shadow_mode: 'ai-soft' as const,
+        lighting_mode: 'ai-auto' as const,
         background_blur: 0
       }
     },
     variant_b_lifestyle: {
-      direction: 'contextual',
+      direction: 'contextual' as const,
       nano_banana_prompt: `A sunlit urban loft apartment interior. Raw exposed red brick wall on the left side. Warm honey-toned wooden floorboards. Soft afternoon sunlight streaming through large industrial windows, casting long warm shadows. A vintage tan leather armchair partially visible in the background, out of focus with beautiful bokeh. Plants and natural textures. ${centerZone} Editorial lifestyle quality.`,
       photoroom_config: {
-        shadow_mode: 'ai-soft',
-        lighting_mode: 'ai-auto',
+        shadow_mode: 'ai-soft' as const,
+        lighting_mode: 'ai-auto' as const,
         background_blur: 20
       }
     },
     variant_c_editorial: {
-      direction: 'bold',
+      direction: 'bold' as const,
       nano_banana_prompt: `A dramatic fashion editorial setting. Dark charcoal textured concrete wall with visible grain and imperfections. Single strong spotlight from the upper right creating deep dramatic shadows. High contrast, moody atmosphere. Black floor fading to shadow. A thin strip of warm amber accent light along the bottom edge. Cinematic and bold. ${centerZone} Fashion editorial quality.`,
       photoroom_config: {
-        shadow_mode: 'ai-hard',
-        lighting_mode: 'dramatic',
+        shadow_mode: 'ai-hard' as const,
+        lighting_mode: 'dramatic' as const,
         background_blur: 0
       }
     }
@@ -389,32 +389,32 @@ function getFashionSceneTemplates(centerZone: string) {
 /**
  * Get default scene templates for non-fashion stores.
  */
-function getDefaultSceneTemplates(centerZone: string) {
+function getDefaultSceneTemplates(centerZone: string): BrandDNA['scene_templates'] {
   return {
     variant_a_clean: {
-      direction: 'minimal',
+      direction: 'minimal' as const,
       nano_banana_prompt: `A clean white surface with soft diffused lighting from above. Minimal scandinavian aesthetic with subtle shadows. Elegant simplicity. ${centerZone} Commercial photography quality.`,
       photoroom_config: {
-        shadow_mode: 'ai-soft',
-        lighting_mode: 'ai-auto',
+        shadow_mode: 'ai-soft' as const,
+        lighting_mode: 'ai-auto' as const,
         background_blur: 0
       }
     },
     variant_b_lifestyle: {
-      direction: 'contextual',
+      direction: 'contextual' as const,
       nano_banana_prompt: `A warm lifestyle scene with natural window light streaming in from the left. Cozy interior with soft textures, wooden surfaces, and a plant in the background. Morning light atmosphere. ${centerZone} Editorial lifestyle quality.`,
       photoroom_config: {
-        shadow_mode: 'ai-soft',
-        lighting_mode: 'ai-auto',
+        shadow_mode: 'ai-soft' as const,
+        lighting_mode: 'ai-auto' as const,
         background_blur: 15
       }
     },
     variant_c_editorial: {
-      direction: 'bold',
+      direction: 'bold' as const,
       nano_banana_prompt: `A bold creative composition with dramatic directional spotlight from above. High contrast editorial mood. Dark background with artistic shadows creating depth and drama. ${centerZone} Fashion editorial quality.`,
       photoroom_config: {
-        shadow_mode: 'ai-hard',
-        lighting_mode: 'dramatic',
+        shadow_mode: 'ai-hard' as const,
+        lighting_mode: 'dramatic' as const,
         background_blur: 0
       }
     }

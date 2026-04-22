@@ -20,7 +20,7 @@ interface Ad {
   sceneImageUrl: string | null;
   productImageUrl: string | null;
   compositedImageUrl: string | null;
-  compositingMethod: 'css_overlay' | 'scene_overlay' | 'server_composite' | 'fashn_model' | 'bria_product_shot' | 'shopify_only' | 'none';
+  compositingMethod: 'css_overlay' | 'scene_overlay' | 'ai_composited' | 'photoroom_fitted' | 'server_composite' | 'fashn_model' | 'bria_product_shot' | 'shopify_only' | 'none';
   // A/B Testing
   abVariant: 'A' | 'B' | 'C' | null;
   abGroup: string | null;
@@ -37,6 +37,16 @@ interface Ad {
   impressions: number;
   platforms: string[];
   campaign: Campaign;
+  // Creative evolution metadata
+  aiRationale?: string;
+  isChallenger?: boolean;
+  generationPhase?: 'LEARNING' | 'OPTIMISING' | 'EXPLOITING';
+  confidenceLevel?: 'low' | 'medium' | 'high';
+  variantType?: string;
+  atmosphereUsed?: string;
+  surfaceUsed?: string;
+  isStyleRotation?: boolean;
+  isStyleExperiment?: boolean;
 }
 
 // Variant style labels
@@ -45,6 +55,85 @@ const VARIANT_LABELS: Record<string, { name: string; color: string }> = {
   B: { name: 'Lifestyle', color: 'bg-green-500' },
   C: { name: 'Bold', color: 'bg-orange-500' },
 };
+
+// Phase labels and colors
+const PHASE_CONFIG: Record<string, { label: string; color: string; bgColor: string }> = {
+  LEARNING: { label: 'Learning', color: 'text-amber-700', bgColor: 'bg-amber-50 border-amber-200' },
+  OPTIMISING: { label: 'Optimising', color: 'text-blue-700', bgColor: 'bg-blue-50 border-blue-200' },
+  EXPLOITING: { label: 'Exploiting', color: 'text-emerald-700', bgColor: 'bg-emerald-50 border-emerald-200' },
+};
+
+// Creative evolution badge component
+function CreativeEvolutionBadge({
+  type
+}: {
+  type: 'challenger' | 'style-rotation' | 'style-experiment'
+}) {
+  const configs = {
+    challenger: {
+      label: 'Challenger',
+      className: 'bg-purple-500 text-white',
+      icon: (
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+        </svg>
+      )
+    },
+    'style-rotation': {
+      label: 'New Style',
+      className: 'bg-gradient-to-r from-pink-500 to-orange-500 text-white',
+      icon: (
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+        </svg>
+      )
+    },
+    'style-experiment': {
+      label: 'Experiment',
+      className: 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white',
+      icon: (
+        <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19.428 15.428a2 2 0 00-1.022-.547l-2.387-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
+        </svg>
+      )
+    },
+  };
+
+  const config = configs[type];
+
+  return (
+    <div className={`px-2 py-1 rounded-lg text-xs font-bold flex items-center gap-1 ${config.className}`}>
+      {config.icon}
+      {config.label}
+    </div>
+  );
+}
+
+// Phase indicator component
+function PhaseIndicator({ phase }: { phase: 'LEARNING' | 'OPTIMISING' | 'EXPLOITING' }) {
+  const config = PHASE_CONFIG[phase] || PHASE_CONFIG.LEARNING;
+
+  return (
+    <div className={`inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-xs font-medium border ${config.bgColor} ${config.color}`}>
+      <span className="w-1.5 h-1.5 rounded-full bg-current animate-pulse" />
+      {config.label}
+    </div>
+  );
+}
+
+// AI Rationale component
+function AIRationale({ rationale }: { rationale: string }) {
+  return (
+    <div className="mt-2 p-2 bg-gray-50 rounded-lg border border-gray-100">
+      <div className="flex items-start gap-1.5">
+        <svg className="w-3.5 h-3.5 text-violet-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        </svg>
+        <p className="text-xs text-gray-600 leading-relaxed">{rationale}</p>
+      </div>
+    </div>
+  );
+}
 
 interface AdsData {
   success: boolean;
@@ -319,14 +408,18 @@ function AdCard({
           </div>
         )}
 
-        {/* Top left: Format badge + Variant badge */}
-        <div className="absolute top-3 left-3 flex gap-1.5">
+        {/* Top left: Format badge + Variant badge + Evolution badges */}
+        <div className="absolute top-3 left-3 flex flex-wrap gap-1.5 max-w-[70%]">
           <FormatBadge format={ad.format} />
           {ad.abVariant && VARIANT_LABELS[ad.abVariant] && (
             <div className={`px-2 py-1 ${VARIANT_LABELS[ad.abVariant].color} backdrop-blur-sm rounded-lg text-xs font-bold text-white`}>
               {ad.abVariant}
             </div>
           )}
+          {/* Creative evolution badges */}
+          {ad.isChallenger && <CreativeEvolutionBadge type="challenger" />}
+          {ad.isStyleRotation && <CreativeEvolutionBadge type="style-rotation" />}
+          {ad.isStyleExperiment && <CreativeEvolutionBadge type="style-experiment" />}
         </div>
 
         {/* Top right: Platform icons */}
@@ -376,6 +469,16 @@ function AdCard({
             <p className="text-sm font-bold text-gray-900">{ad.ctr.toFixed(2)}%</p>
           </div>
         </div>
+
+        {/* Phase indicator */}
+        {ad.generationPhase && (
+          <div className="mb-3">
+            <PhaseIndicator phase={ad.generationPhase} />
+          </div>
+        )}
+
+        {/* AI Rationale */}
+        {ad.aiRationale && <AIRationale rationale={ad.aiRationale} />}
 
         {/* Card Footer */}
         <div className="flex items-center justify-between pt-3 border-t border-gray-100">
@@ -595,7 +698,7 @@ function AdPreviewModal({
 
           {/* Format & Strategy */}
           <div className="border-t border-gray-100 pt-6 mt-6">
-            <div className="flex items-center gap-4 text-sm">
+            <div className="flex items-center gap-4 text-sm flex-wrap">
               <div className="flex items-center gap-2">
                 <span className="text-gray-500">Format:</span>
                 <span className="font-medium text-gray-900 capitalize">{ad.format === 'static' ? 'Static Image' : 'Carousel'}</span>
@@ -606,8 +709,47 @@ function AdPreviewModal({
                   <span className="font-medium text-gray-900 capitalize">{ad.creativeStrategy.replace('_', ' ')}</span>
                 </div>
               )}
+              {ad.generationPhase && (
+                <div className="flex items-center gap-2">
+                  <span className="text-gray-500">Phase:</span>
+                  <PhaseIndicator phase={ad.generationPhase} />
+                </div>
+              )}
             </div>
           </div>
+
+          {/* Creative Evolution Badges */}
+          {(ad.isChallenger || ad.isStyleRotation || ad.isStyleExperiment) && (
+            <div className="border-t border-gray-100 pt-6 mt-6">
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">Creative Testing</h4>
+              <div className="flex flex-wrap gap-2">
+                {ad.isChallenger && <CreativeEvolutionBadge type="challenger" />}
+                {ad.isStyleRotation && <CreativeEvolutionBadge type="style-rotation" />}
+                {ad.isStyleExperiment && <CreativeEvolutionBadge type="style-experiment" />}
+              </div>
+              {ad.variantType && (
+                <p className="text-xs text-gray-500 mt-2">
+                  Style: <span className="font-medium">{ad.variantType.replace(/_/g, ' ').toLowerCase()}</span>
+                  {ad.atmosphereUsed && <> &middot; {ad.atmosphereUsed.replace(/-/g, ' ')}</>}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* AI Rationale */}
+          {ad.aiRationale && (
+            <div className="border-t border-gray-100 pt-6 mt-6">
+              <h4 className="text-xs font-semibold text-gray-500 uppercase tracking-wide mb-3">AI Rationale</h4>
+              <div className="p-3 bg-violet-50 rounded-xl border border-violet-100">
+                <div className="flex items-start gap-2">
+                  <svg className="w-4 h-4 text-violet-500 mt-0.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+                  </svg>
+                  <p className="text-sm text-violet-700 leading-relaxed">{ad.aiRationale}</p>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Action Buttons */}
           <div className="flex gap-3 mt-6">

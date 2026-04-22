@@ -122,6 +122,16 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         creativeStrategy: ad.creative_strategy,
         createdAt: ad.created_at,
         updatedAt: ad.updated_at,
+        // Creative evolution metadata
+        aiRationale: ad.ai_rationale || null,
+        isChallenger: ad.is_challenger === 1,
+        generationPhase: ad.generation_phase || null,
+        confidenceLevel: ad.confidence_level || null,
+        variantType: ad.variant_type_used || null,
+        atmosphereUsed: ad.atmosphere_used || null,
+        surfaceUsed: ad.surface_used || null,
+        isStyleRotation: ad.is_style_rotation === 1,
+        isStyleExperiment: ad.is_style_experiment === 1,
         // Mock performance data
         ...mockData,
       };

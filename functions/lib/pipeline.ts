@@ -8,18 +8,21 @@
  * 1. Detect generation phase (LEARNING/OPTIMISING/EXPLOITING)
  * 2. Load Brand DNA (generate if missing)
  * 3. Load Product Style (analyze if missing, non-blocking)
- * 4. Remove product background (cache result)
- * 5. Decide variants based on phase
- * 6. Generate scenes AND copy IN PARALLEL
- * 7. Fit product into scenes (Photoroom)
- * 8. Build AI rationale for each variant
- * 9. Save all variants to database
- * 10. Return results
+ * 4. Load Creative Evolution State
+ * 5. Remove product background (cache result)
+ * 6. Decide variants based on phase + evolution
+ * 7. Generate scenes AND copy IN PARALLEL
+ * 8. Fit product into scenes (if using text-to-image)
+ * 9. Build AI rationale for each variant
+ * 10. Save all variants to database with metadata
+ * 11. Update creative evolution state
+ * 12. Return results
  *
  * PROVIDER RULES ENFORCED:
  * // ZERO_HALLUCINATION: Product image always from Shopify
  * // PARALLEL: Image gen and copy gen always run in parallel
  * // PHASE_GATING: AI reasoning unlocks only after 30 days AND 10+ published ads
+ * // ALWAYS_UNIQUE: Every generation uses random seed + variation pools
  */
 
 import type {
@@ -30,15 +33,27 @@ import type {
   AdVariant,
   AdGenerationResult,
   GenerateAdResponse,
-  PhaseDetectionResult
+  PhaseDetectionResult,
+  CreativeEvolutionState
 } from './types';
 
-import { detectPhase, getVariantsToGenerate, generateRationale, updateStorePhase } from './phaseDetection';
-import { getBrandDNA, getSceneTemplate } from './brandDna';
+import {
+  detectPhase,
+  getVariantsToGenerate,
+  generateRationale,
+  updateStorePhase,
+  loadCreativeEvolution,
+  saveCreativeEvolution,
+  createInitialEvolutionState,
+  isStyleRotationDue
+} from './phaseDetection';
+
+import { getBrandDNA } from './brandDna';
 import { getProductStyle } from './productStyle';
-import { generateScene, generateScenesParallel } from './sceneGeneration';
+import { generateScenesParallel, type ExtendedSceneResult } from './sceneGeneration';
 import { removeBackground, compositeProductIntoScene } from './productFitting';
 import { generateCopyForVariants } from './copyGeneration';
+import { getVariantType, requiresTextToImage, type VariantType } from './promptVariation';
 
 // ===========================================
 // MAIN PIPELINE FUNCTION
@@ -84,7 +99,23 @@ export async function runPipeline(
     });
 
     // ===========================================
-    // STEP 4: Remove Product Background (cached)
+    // STEP 4: Load Creative Evolution State
+    // ===========================================
+    let evolutionState = await loadCreativeEvolution(product.id, env);
+    if (!evolutionState) {
+      evolutionState = createInitialEvolutionState(phaseResult.phase);
+    }
+
+    // Check for style rotation
+    const isStyleRotation = isStyleRotationDue(evolutionState);
+    if (isStyleRotation) {
+      console.log('[PIPELINE] Style rotation triggered');
+      evolutionState.lastStyleRotation = new Date().toISOString();
+      evolutionState.lastNewStyleTestedAt = new Date().toISOString();
+    }
+
+    // ===========================================
+    // STEP 5: Remove Product Background (cached)
     // ===========================================
     const rmbgResult = await removeBackground(product, env);
     console.log('[PIPELINE] Background removal:', {
@@ -92,8 +123,11 @@ export async function runPipeline(
       cached: rmbgResult.cached
     });
 
+    // Get the clean product image URL (absolute URL for edit endpoint)
+    const cleanProductImageUrl = getAbsoluteUrl(rmbgResult.cleanImageUrl, env);
+
     // ===========================================
-    // STEP 5: Decide Variants Based on Phase
+    // STEP 6: Decide Variants Based on Phase
     // ===========================================
     const variantsToGenerate = await getVariantsToGenerate(phaseResult, product.store_id, env);
     const variants = variantsToGenerate.map(v => v.variant);
@@ -103,13 +137,20 @@ export async function runPipeline(
     const abGroup = `${product.id}_${Date.now()}`;
 
     // ===========================================
-    // STEP 6: Generate Scenes AND Copy IN PARALLEL
+    // STEP 7: Generate Scenes AND Copy IN PARALLEL
     // ===========================================
     console.log('[PIPELINE] Starting parallel generation (scenes + copy)...');
 
     const [scenesMap, copyResult] = await Promise.all([
-      // Generate all scenes in parallel
-      generateScenesParallel(variants, brandDna, productStyle, product.store_id, env),
+      // Generate all scenes in parallel (now with variation metadata)
+      generateScenesParallel(
+        variants,
+        brandDna,
+        productStyle,
+        cleanProductImageUrl,
+        product.store_id,
+        env
+      ),
 
       // Generate all copy in one Claude call
       generateCopyForVariants(product, brandDna, productStyle, variants, env)
@@ -121,7 +162,7 @@ export async function runPipeline(
     });
 
     // ===========================================
-    // STEP 7: Fit Product Into Scenes (Photoroom)
+    // STEP 8: Process Each Variant
     // ===========================================
     const results: AdGenerationResult[] = [];
 
@@ -142,47 +183,87 @@ export async function runPipeline(
         continue;
       }
 
-      // Get Photoroom config from Brand DNA
-      const template = getSceneTemplate(brandDna, variant);
+      // Determine if we need CSS overlay (for text-to-image scenes)
+      const needsCssOverlay = sceneResult.usedEditEndpoint === false;
+      let finalImageUrl = sceneResult.sceneUrl;
+      let compositingMethod = sceneResult.usedEditEndpoint ? 'ai_composited' : 'scene_overlay';
 
-      // Composite product into scene
-      const fittingResult = await compositeProductIntoScene(
-        product,
-        sceneResult.sceneUrl,
-        template.photoroomConfig,
-        variant,
-        env
-      );
+      // For text-to-image scenes, try Photoroom compositing
+      if (needsCssOverlay && cleanProductImageUrl) {
+        const fittingResult = await compositeProductIntoScene(
+          product,
+          sceneResult.sceneUrl,
+          { shadow_mode: 'ai-soft', lighting_mode: 'ai-auto', background_blur: 0 },
+          variant,
+          env
+        );
+
+        if (fittingResult.success && fittingResult.compositedImageUrl) {
+          finalImageUrl = fittingResult.compositedImageUrl;
+          compositingMethod = fittingResult.provider === 'photoroom' ? 'photoroom_fitted' : 'scene_overlay';
+        }
+      }
 
       // ===========================================
-      // STEP 8: Build AI Rationale
+      // STEP 9: Build AI Rationale
       // ===========================================
       const aiRationale = generateRationale(
         phaseResult,
         variant,
         isChallenger,
-        brandDna.performance_memory.best_variant_historically
+        brandDna.performance_memory.best_variant_historically,
+        isStyleRotation,
+        evolutionState
       );
 
-      // Build result
+      // Build result with extended metadata
       results.push({
         variant,
         success: true,
         sceneImageUrl: sceneResult.sceneUrl,
         productImageUrl: getProductImageUrl(product),
         cleanProductImageUrl: rmbgResult.cleanImageUrl,
-        compositedImageUrl: fittingResult.compositedImageUrl,
+        compositedImageUrl: finalImageUrl,
         headline: variantCopy.headline,
         primaryText: variantCopy.primaryText,
         description: variantCopy.description,
         cta: variantCopy.cta,
-        compositingMethod: fittingResult.provider === 'photoroom' ? 'photoroom_fitted' : 'scene_overlay',
+        compositingMethod: compositingMethod as any,
         aiRationale,
         isChallenger,
         generationPhase: phaseResult.phase,
         confidenceLevel: phaseResult.confidence,
-        brandDnaVersion: brandDna.version
+        brandDnaVersion: brandDna.version,
+        // Extended metadata from scene generation
+        _variantType: sceneResult.variantType,
+        _variation: sceneResult.variation,
+        _seed: sceneResult.seed,
+        _promptHash: sceneResult.promptHash,
+        _isStyleRotation: isStyleRotation
+      } as AdGenerationResult & {
+        _variantType: VariantType;
+        _variation: { surface: string; atmosphere: string };
+        _seed: number;
+        _promptHash: string;
+        _isStyleRotation: boolean;
       });
+
+      // Update evolution state with tested style
+      evolutionState.testedStyles.push({
+        variantType: sceneResult.variantType,
+        surface: sceneResult.variation.surface,
+        atmosphere: sceneResult.variation.atmosphere,
+        roas: null,
+        ctr: null,
+        generatedAt: new Date().toISOString()
+      });
+
+      if (!evolutionState.testedAtmospheres.includes(sceneResult.variation.atmosphere)) {
+        evolutionState.testedAtmospheres.push(sceneResult.variation.atmosphere);
+      }
+      if (!evolutionState.testedVariantTypes.includes(sceneResult.variantType)) {
+        evolutionState.testedVariantTypes.push(sceneResult.variantType);
+      }
     }
 
     if (results.length === 0) {
@@ -190,15 +271,22 @@ export async function runPipeline(
     }
 
     // ===========================================
-    // STEP 9: Save All Variants to Database
+    // STEP 10: Save All Variants to Database
     // ===========================================
-    const savedAds = await saveAdsToDB(product, results, abGroup, env);
+    const savedAds = await saveAdsToDB(product, results, abGroup, isStyleRotation, env);
+
+    // ===========================================
+    // STEP 11: Update Creative Evolution State
+    // ===========================================
+    evolutionState.generationCount += 1;
+    evolutionState.phase = phaseResult.phase;
+    await saveCreativeEvolution(product.id, evolutionState, env);
 
     const duration = Date.now() - startTime;
     console.log(`[PIPELINE] Complete: ${results.length} variants in ${duration}ms`);
 
     // ===========================================
-    // STEP 10: Return Results
+    // STEP 12: Return Results
     // ===========================================
     return {
       success: true,
@@ -226,12 +314,19 @@ export async function runPipeline(
 // ===========================================
 
 /**
- * Save generated ads to database.
+ * Save generated ads to database with extended metadata.
  */
 async function saveAdsToDB(
   product: ProductRecord,
-  results: AdGenerationResult[],
+  results: (AdGenerationResult & {
+    _variantType?: VariantType;
+    _variation?: { surface: string; atmosphere: string };
+    _seed?: number;
+    _promptHash?: string;
+    _isStyleRotation?: boolean;
+  })[],
   abGroup: string,
+  isStyleRotation: boolean,
   env: Env
 ): Promise<GenerateAdResponse['variants']> {
   const savedAds: GenerateAdResponse['variants'] = [];
@@ -248,9 +343,12 @@ async function saveAdsToDB(
           compositing_method, platform, format,
           ab_variant, ab_group,
           ai_rationale, is_challenger, generation_phase, confidence_level, brand_dna_version,
+          generation_seed, prompt_hash, brand_consistent,
+          is_style_rotation, is_style_experiment,
+          atmosphere_used, surface_used, variant_type_used,
           created_at, updated_at
         )
-        VALUES (?, ?, ?, 'ready', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+        VALUES (?, ?, ?, 'ready', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
       `).bind(
         adId,
         product.store_id,
@@ -272,7 +370,15 @@ async function saveAdsToDB(
         result.isChallenger ? 1 : 0,
         result.generationPhase,
         result.confidenceLevel,
-        result.brandDnaVersion
+        result.brandDnaVersion,
+        result._seed || null,
+        result._promptHash || null,
+        1, // brand_consistent = true
+        result._isStyleRotation ? 1 : 0,
+        0, // is_style_experiment = false for now
+        result._variation?.atmosphere || null,
+        result._variation?.surface || null,
+        result._variantType || null
       ).run();
 
       savedAds.push({
@@ -290,7 +396,11 @@ async function saveAdsToDB(
         compositingMethod: result.compositingMethod,
         aiRationale: result.aiRationale,
         isChallenger: result.isChallenger,
-        confidenceLevel: result.confidenceLevel
+        confidenceLevel: result.confidenceLevel,
+        variantType: result._variantType,
+        atmosphereUsed: result._variation?.atmosphere,
+        surfaceUsed: result._variation?.surface,
+        isStyleRotation: result._isStyleRotation
       });
 
       console.log(`[PIPELINE] Saved variant ${result.variant}:`, adId);
@@ -325,6 +435,32 @@ function getProductImageUrl(product: ProductRecord): string | null {
     }
   }
 
+  return null;
+}
+
+/**
+ * Convert relative URL to absolute URL for external API calls.
+ */
+function getAbsoluteUrl(url: string | null, env: Env): string | null {
+  if (!url) return null;
+
+  // If already absolute, return as-is
+  if (url.startsWith('http://') || url.startsWith('https://')) {
+    return url;
+  }
+
+  // Use R2 public URL if available
+  if (env.R2_PUBLIC_URL) {
+    // Extract key from /api/ads/image?key=...
+    const keyMatch = url.match(/key=([^&]+)/);
+    if (keyMatch) {
+      const key = decodeURIComponent(keyMatch[1]);
+      return `${env.R2_PUBLIC_URL}/${key}`;
+    }
+  }
+
+  // Fallback: can't convert to absolute
+  console.warn('[PIPELINE] Cannot convert relative URL to absolute:', url);
   return null;
 }
 

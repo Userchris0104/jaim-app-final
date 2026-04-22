@@ -1,18 +1,18 @@
 /**
- * Scene Generation - Nano Banana 2
+ * Scene Generation - Nano Banana 2 Edit + Text-to-Image
  *
- * // NANO_BANANA_ONLY: Primary scene generator
- * // Uses aspect_ratio not image_size
- * // Natural language prompts only
- * // fal-ai/nano-banana-2
+ * Uses two approaches based on variant type:
  *
- * // ZERO_HALLUCINATION: Product image always from Shopify.
- * // AI generates SCENE only. Empty center zone is explicit in every prompt.
+ * 1. EDIT ENDPOINT (fal-ai/nano-banana-2/edit):
+ *    For product-focused variants where the product is composited
+ *    into the scene by AI. Provides image_urls with clean product image.
  *
- * // FLUX_FALLBACK: FLUX is emergency fallback only if Nano Banana 2 fails after 2 retries.
+ * 2. TEXT-TO-IMAGE (fal-ai/nano-banana-2):
+ *    For lifestyle/model scenes where product will be CSS overlaid.
+ *    Generates scene with empty center zone for product placement.
  *
- * Generates background scenes with explicit empty center zones.
- * Product is NEVER generated - only the environment around it.
+ * // ALWAYS_UNIQUE: Every generation uses random seed + variation pools
+ * // BRAND_DNA_WINS: Brand identity overrides category defaults
  */
 
 import type {
@@ -20,89 +20,159 @@ import type {
   SceneGenerationResult,
   BrandDNA,
   ProductStyleProfile,
-  AdVariant
+  AdVariant,
+  StoreCategory
 } from './types';
-import { getSceneTemplate } from './brandDna';
+
+import {
+  getVariantType,
+  getVariationPools,
+  selectVariation,
+  buildCategoryPrompt,
+  generateUniqueSeed,
+  generatePromptHash,
+  requiresTextToImage,
+  type VariantType,
+  type VariationSelection
+} from './promptVariation';
 
 // ===========================================
 // CONSTANTS
 // ===========================================
 
 const FAL_API_URL = 'https://fal.run';
-const NANO_BANANA_ENDPOINT = 'fal-ai/nano-banana-2';
+const NANO_BANANA_EDIT_ENDPOINT = 'fal-ai/nano-banana-2/edit';
+const NANO_BANANA_TEXT_ENDPOINT = 'fal-ai/nano-banana-2';
 const FLUX_FALLBACK_ENDPOINT = 'fal-ai/flux/dev';
 const MAX_RETRIES = 2;
 
-// Empty center zone instruction that MUST be in every prompt
+// Empty center zone instruction for text-to-image scenes
 const CENTER_ZONE_INSTRUCTION = `Leave a clearly empty rectangular space in the center of the frame approximately 60% of the composition. Do not generate any product, object, or physical item in that center zone. Generate only the background environment.`;
 
-// Model scene instruction for fashion wearables - model to the side, product space in center
-const MODEL_SCENE_INSTRUCTION = `Include a stylish model positioned to the RIGHT side of the frame, occupying only the right 30% of the composition. The model should be partially visible (shoulder, arm, or profile view) looking toward or gesturing toward the CENTER where a product will be placed. Leave the center and left portions of the frame COMPLETELY EMPTY for product placement. Do not show the model holding or wearing any product.`;
+// ===========================================
+// EXTENDED RESULT TYPE
+// ===========================================
+
+export interface ExtendedSceneResult extends SceneGenerationResult {
+  variantType: VariantType;
+  variation: VariationSelection;
+  seed: number;
+  promptHash: string;
+  usedEditEndpoint: boolean;
+}
 
 // ===========================================
 // MAIN GENERATION FUNCTION
 // ===========================================
 
 /**
- * Generate a scene background using Nano Banana 2.
- * The scene will have an empty center zone for product placement.
- * For FASHION wearables on Variant C, includes a model positioned to the side.
+ * Generate a scene for a variant using the appropriate endpoint.
+ *
+ * @param variant - A, B, or C
+ * @param brandDna - Store's brand identity
+ * @param productStyle - Product visual analysis
+ * @param cleanProductImageUrl - Background-removed product image
+ * @param storeId - For R2 storage path
+ * @param env - Environment with API keys
  */
 export async function generateScene(
   variant: AdVariant,
   brandDna: BrandDNA,
   productStyle: ProductStyleProfile | null,
+  cleanProductImageUrl: string | null,
   storeId: string,
   env: Env
-): Promise<SceneGenerationResult> {
-  // Get scene template from Brand DNA
-  const template = getSceneTemplate(brandDna, variant);
+): Promise<ExtendedSceneResult> {
+  const category = brandDna.store_category as StoreCategory;
+  const variantType = getVariantType(category, variant);
 
-  // Determine if this should be a model scene
-  // Model scenes: FASHION category + wearable product + Variant C (editorial)
-  const shouldIncludeModel = shouldUseModelScene(variant, brandDna, productStyle);
+  // Select random variations from category pools
+  const pools = getVariationPools(category);
+  const variation = selectVariation(pools);
 
-  // Build the final prompt
-  const prompt = buildScenePrompt(template.prompt, productStyle, brandDna, shouldIncludeModel);
+  // Generate unique seed
+  const seed = generateUniqueSeed();
 
-  console.log('[SCENE_GEN] Generating scene for variant', variant, shouldIncludeModel ? '(with model)' : '');
-  console.log('[SCENE_GEN] Prompt:', prompt.slice(0, 150) + '...');
+  // Generate prompt hash for duplicate detection
+  const promptHash = generatePromptHash(
+    category,
+    variantType,
+    variation.surface,
+    variation.prop,
+    variation.lighting,
+    variation.atmosphere,
+    brandDna.version
+  );
 
-  // Try Nano Banana 2 with retries
-  for (let attempt = 1; attempt <= MAX_RETRIES; attempt++) {
-    const result = await generateWithNanoBanana(prompt, env);
+  // Build the category prompt with variations and brand override
+  const productStyleHint = productStyle?.compositing_hints.suggested_scene_style;
+  let prompt = buildCategoryPrompt(
+    variantType,
+    variation,
+    brandDna,
+    productStyleHint
+  );
 
-    if (result.success && result.sceneUrl) {
-      // Save to R2 for permanent storage
-      const r2Url = await saveSceneToR2(result.sceneUrl, storeId, variant, env);
+  // Determine which endpoint to use
+  const useTextToImage = requiresTextToImage(variantType) || !cleanProductImageUrl;
 
-      return {
-        success: true,
-        sceneUrl: r2Url,
-        provider: 'nano-banana-2',
-        prompt
-      };
-    }
+  console.log('[SCENE_GEN] Generating:', {
+    variant,
+    variantType,
+    category,
+    atmosphere: variation.atmosphere,
+    useTextToImage,
+    seed
+  });
 
-    console.warn(`[SCENE_GEN] Nano Banana attempt ${attempt} failed:`, result.error);
+  let result: { success: boolean; sceneUrl: string | null; error?: string };
 
-    if (attempt < MAX_RETRIES) {
-      await new Promise(r => setTimeout(r, 1000));  // Wait 1s before retry
+  if (useTextToImage) {
+    // Add center zone instruction for text-to-image
+    prompt = `${prompt} ${CENTER_ZONE_INSTRUCTION}`;
+    result = await generateWithNanoBananaText(prompt, seed, env);
+  } else {
+    // Use edit endpoint with product image
+    result = await generateWithNanoBananaEdit(
+      prompt,
+      cleanProductImageUrl!,
+      seed,
+      env
+    );
+  }
+
+  // Retry logic
+  if (!result.success) {
+    console.warn('[SCENE_GEN] First attempt failed, retrying...');
+    const retrySeed = generateUniqueSeed();
+
+    if (useTextToImage) {
+      result = await generateWithNanoBananaText(prompt, retrySeed, env);
+    } else {
+      result = await generateWithNanoBananaEdit(prompt, cleanProductImageUrl!, retrySeed, env);
     }
   }
 
-  // Fallback to FLUX
-  console.log('[SCENE_GEN] Falling back to FLUX');
-  const fluxResult = await generateWithFlux(prompt, env);
+  // Fallback to FLUX if still failing
+  if (!result.success) {
+    console.log('[SCENE_GEN] Falling back to FLUX');
+    result = await generateWithFlux(prompt, env);
+  }
 
-  if (fluxResult.success && fluxResult.sceneUrl) {
-    const r2Url = await saveSceneToR2(fluxResult.sceneUrl, storeId, variant, env);
+  if (result.success && result.sceneUrl) {
+    // Save to R2 for permanent storage
+    const r2Url = await saveSceneToR2(result.sceneUrl, storeId, variant, env);
 
     return {
       success: true,
       sceneUrl: r2Url,
-      provider: 'flux-fallback',
-      prompt
+      provider: 'nano-banana-2',
+      prompt,
+      variantType,
+      variation,
+      seed,
+      promptHash,
+      usedEditEndpoint: !useTextToImage
     };
   }
 
@@ -111,20 +181,27 @@ export async function generateScene(
     sceneUrl: null,
     provider: 'nano-banana-2',
     prompt,
-    error: 'All scene generation attempts failed'
+    error: result.error || 'All generation attempts failed',
+    variantType,
+    variation,
+    seed,
+    promptHash,
+    usedEditEndpoint: !useTextToImage
   };
 }
 
 // ===========================================
-// NANO BANANA 2 GENERATION
+// NANO BANANA 2 EDIT ENDPOINT
 // ===========================================
 
 /**
- * Generate scene with Nano Banana 2.
- * Uses natural language prompts and aspect_ratio (not image_size).
+ * Generate scene with product using Nano Banana 2 Edit endpoint.
+ * The AI composites the product into the generated scene.
  */
-async function generateWithNanoBanana(
+async function generateWithNanoBananaEdit(
   prompt: string,
+  productImageUrl: string,
+  seed: number,
   env: Env
 ): Promise<{ success: boolean; sceneUrl: string | null; error?: string }> {
   if (!env.FAL_API_KEY) {
@@ -132,7 +209,7 @@ async function generateWithNanoBanana(
   }
 
   try {
-    const response = await fetch(`${FAL_API_URL}/${NANO_BANANA_ENDPOINT}`, {
+    const response = await fetch(`${FAL_API_URL}/${NANO_BANANA_EDIT_ENDPOINT}`, {
       method: 'POST',
       headers: {
         'Authorization': `Key ${env.FAL_API_KEY}`,
@@ -140,16 +217,17 @@ async function generateWithNanoBanana(
       },
       body: JSON.stringify({
         prompt,
-        aspect_ratio: '1:1',  // CRITICAL: Use aspect_ratio not image_size
+        image_urls: [productImageUrl],
+        aspect_ratio: '1:1',
         resolution: '1K',
-        limit_generations: true,
+        seed,
         safety_tolerance: '4'
       })
     });
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error('[NANO_BANANA] API error:', response.status, errorText);
+      console.error('[NANO_BANANA_EDIT] API error:', response.status, errorText);
       return {
         success: false,
         sceneUrl: null,
@@ -162,7 +240,6 @@ async function generateWithNanoBanana(
       image?: { url: string };
     };
 
-    // Handle both array and single image response formats
     const imageUrl = data.images?.[0]?.url || data.image?.url;
 
     if (!imageUrl) {
@@ -173,10 +250,81 @@ async function generateWithNanoBanana(
       };
     }
 
-    console.log('[NANO_BANANA] Generated successfully');
+    console.log('[NANO_BANANA_EDIT] Generated successfully');
     return { success: true, sceneUrl: imageUrl };
   } catch (error: any) {
-    console.error('[NANO_BANANA] Error:', error);
+    console.error('[NANO_BANANA_EDIT] Error:', error);
+    return {
+      success: false,
+      sceneUrl: null,
+      error: error.message || 'Generation failed'
+    };
+  }
+}
+
+// ===========================================
+// NANO BANANA 2 TEXT-TO-IMAGE
+// ===========================================
+
+/**
+ * Generate scene using text-to-image (for lifestyle/model scenes).
+ * Product will be CSS overlaid onto the result.
+ */
+async function generateWithNanoBananaText(
+  prompt: string,
+  seed: number,
+  env: Env
+): Promise<{ success: boolean; sceneUrl: string | null; error?: string }> {
+  if (!env.FAL_API_KEY) {
+    return { success: false, sceneUrl: null, error: 'No FAL API key' };
+  }
+
+  try {
+    const response = await fetch(`${FAL_API_URL}/${NANO_BANANA_TEXT_ENDPOINT}`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Key ${env.FAL_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        prompt,
+        aspect_ratio: '1:1',
+        resolution: '1K',
+        seed,
+        limit_generations: true,
+        safety_tolerance: '4'
+      })
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error('[NANO_BANANA_TEXT] API error:', response.status, errorText);
+      return {
+        success: false,
+        sceneUrl: null,
+        error: `API error: ${response.status}`
+      };
+    }
+
+    const data = await response.json() as {
+      images?: Array<{ url: string }>;
+      image?: { url: string };
+    };
+
+    const imageUrl = data.images?.[0]?.url || data.image?.url;
+
+    if (!imageUrl) {
+      return {
+        success: false,
+        sceneUrl: null,
+        error: 'No image in response'
+      };
+    }
+
+    console.log('[NANO_BANANA_TEXT] Generated successfully');
+    return { success: true, sceneUrl: imageUrl };
+  } catch (error: any) {
+    console.error('[NANO_BANANA_TEXT] Error:', error);
     return {
       success: false,
       sceneUrl: null,
@@ -201,13 +349,6 @@ async function generateWithFlux(
     return { success: false, sceneUrl: null, error: 'No FAL API key' };
   }
 
-  // Add explicit negative prompt for FLUX
-  const negativePrompt = [
-    'product', 'item', 'object', 'merchandise', 'goods',
-    'person', 'human', 'model', 'mannequin', 'face', 'hands',
-    'text', 'watermark', 'logo', 'blurry', 'low quality'
-  ].join(', ');
-
   try {
     const response = await fetch(`${FAL_API_URL}/${FLUX_FALLBACK_ENDPOINT}`, {
       method: 'POST',
@@ -217,8 +358,7 @@ async function generateWithFlux(
       },
       body: JSON.stringify({
         prompt,
-        negative_prompt: negativePrompt,
-        image_size: 'square',  // FLUX uses image_size
+        image_size: 'square',
         num_images: 1,
         enable_safety_checker: true
       })
@@ -259,110 +399,6 @@ async function generateWithFlux(
 }
 
 // ===========================================
-// MODEL SCENE DETECTION
-// ===========================================
-
-/**
- * Determine if a scene should include a model.
- * Models are used for FASHION stores + wearable products + Variant C (editorial).
- */
-function shouldUseModelScene(
-  variant: AdVariant,
-  brandDna: BrandDNA,
-  productStyle: ProductStyleProfile | null
-): boolean {
-  // Only Variant C (editorial) gets models
-  if (variant !== 'C') {
-    return false;
-  }
-
-  // Must be FASHION category
-  if (brandDna.store_category !== 'FASHION') {
-    return false;
-  }
-
-  // Product must be wearable
-  if (!productStyle?.classification.is_wearable) {
-    return false;
-  }
-
-  // Brand DNA must allow models
-  if (!brandDna.model_direction.use_models) {
-    return false;
-  }
-
-  return true;
-}
-
-/**
- * Build model description based on brand DNA and product style.
- */
-function buildModelDescription(
-  brandDna: BrandDNA,
-  productStyle: ProductStyleProfile | null
-): string {
-  const gender = productStyle?.classification.gender || brandDna.model_direction.gender_default;
-  const ageRange = brandDna.model_direction.age_range;
-  const expression = brandDna.model_direction.expression;
-  const archetype = brandDna.model_direction.style_archetype;
-
-  const genderDesc = gender === 'MALE' ? 'male' : gender === 'FEMALE' ? 'female' : 'androgynous';
-
-  return `A stylish ${genderDesc} model, age ${ageRange}, with a ${expression} expression. ${archetype}`;
-}
-
-// ===========================================
-// PROMPT BUILDING
-// ===========================================
-
-/**
- * Build the final scene prompt with all context.
- * Ensures empty center zone instruction is always included.
- * For model scenes, adds a model positioned to the side.
- */
-function buildScenePrompt(
-  basePrompt: string,
-  productStyle: ProductStyleProfile | null,
-  brandDna: BrandDNA,
-  includeModel: boolean = false
-): string {
-  const parts: string[] = [];
-
-  // Start with base prompt from Brand DNA
-  parts.push(basePrompt);
-
-  // Add product context if available
-  if (productStyle) {
-    const sceneHint = productStyle.compositing_hints.suggested_scene_style;
-    if (sceneHint && !basePrompt.toLowerCase().includes(sceneHint.toLowerCase().slice(0, 20))) {
-      parts.push(`Scene should complement: ${sceneHint}`);
-    }
-
-    // Add color harmony hint
-    if (productStyle.compositing_hints.dominant_colors.length > 0) {
-      const colors = productStyle.compositing_hints.dominant_colors.join(', ');
-      parts.push(`Color palette that harmonizes with product colors: ${colors}`);
-    }
-  }
-
-  // Add model for fashion editorial scenes
-  if (includeModel) {
-    const modelDesc = buildModelDescription(brandDna, productStyle);
-    parts.push(modelDesc);
-    parts.push(MODEL_SCENE_INSTRUCTION);
-    console.log('[SCENE_GEN] Adding model to scene:', modelDesc.slice(0, 80) + '...');
-  } else {
-    // Ensure empty center zone instruction for non-model scenes
-    const prompt = parts.join('. ');
-    if (!prompt.includes('empty') || !prompt.includes('center')) {
-      parts.push(CENTER_ZONE_INSTRUCTION);
-    }
-  }
-
-  return parts.join('. ');
-}
-
-// ===========================================
 // R2 STORAGE
 // ===========================================
 
@@ -379,7 +415,7 @@ async function saveSceneToR2(
     const response = await fetch(imageUrl);
     if (!response.ok) {
       console.warn('[SCENE_GEN] Failed to download scene:', response.status);
-      return imageUrl;  // Return original URL as fallback
+      return imageUrl;
     }
 
     const buffer = await response.arrayBuffer();
@@ -395,11 +431,10 @@ async function saveSceneToR2(
 
     console.log('[SCENE_GEN] Saved to R2:', key);
 
-    // Return the API URL for serving
     return `/api/ads/image?key=${encodeURIComponent(key)}`;
   } catch (error) {
     console.error('[SCENE_GEN] R2 save failed:', error);
-    return imageUrl;  // Return original URL as fallback
+    return imageUrl;
   }
 }
 
@@ -414,19 +449,20 @@ export async function generateScenesParallel(
   variants: AdVariant[],
   brandDna: BrandDNA,
   productStyle: ProductStyleProfile | null,
+  cleanProductImageUrl: string | null,
   storeId: string,
   env: Env
-): Promise<Map<AdVariant, SceneGenerationResult>> {
+): Promise<Map<AdVariant, ExtendedSceneResult>> {
   console.log(`[SCENE_GEN] Generating ${variants.length} scenes in parallel...`);
 
   const results = await Promise.allSettled(
     variants.map(variant =>
-      generateScene(variant, brandDna, productStyle, storeId, env)
+      generateScene(variant, brandDna, productStyle, cleanProductImageUrl, storeId, env)
         .then(result => ({ variant, result }))
     )
   );
 
-  const sceneMap = new Map<AdVariant, SceneGenerationResult>();
+  const sceneMap = new Map<AdVariant, ExtendedSceneResult>();
 
   for (const settledResult of results) {
     if (settledResult.status === 'fulfilled') {

@@ -17,9 +17,11 @@ import type {
   BrandDNA,
   ProductRecord,
   ProductStyleProfile,
-  AdVariant
+  AdVariant,
+  StoreCategory
 } from './types';
 import { getCopyAngle } from './brandDna';
+import { CATEGORY_VARIANTS, getVariantType } from './promptVariation';
 
 // ===========================================
 // CONSTANTS
@@ -58,6 +60,54 @@ export async function generateCopyForVariants(
 }
 
 /**
+ * Get category-specific copy angle for a variant.
+ */
+function getCategoryCopyAngle(
+  category: StoreCategory,
+  variant: AdVariant
+): string {
+  const variantType = getVariantType(category, variant);
+
+  // Category-specific copy angles based on variant type
+  const copyAngles: Record<string, string> = {
+    // JEWELRY
+    'PRODUCT_LUXURY_SURFACE': 'Focus on craftsmanship, materials, and timeless elegance. Speak to the feeling of wearing something precious.',
+    'MODEL_WEARING_JEWELRY': 'Focus on how the piece transforms the wearer. Confidence, elegance, making a statement.',
+    'EDITORIAL_CLOSE_UP': 'Focus on intimate details and the emotional meaning of the piece. Gift-worthy, heirloom quality.',
+
+    // BEAUTY
+    'PRODUCT_STYLED_SURFACE': 'Focus on ingredients, efficacy, and the ritual of self-care. Clean beauty, visible results.',
+    'PRODUCT_MINIMAL_FABRIC': 'Focus on simplicity, purity, and essential skincare. Less is more, gentle effectiveness.',
+    'LIFESTYLE_RITUAL': 'Focus on the feeling of the skincare moment. Morning ritual, evening wind-down, treating yourself.',
+
+    // PETS
+    'PRODUCT_WITH_ANIMAL': 'Focus on the pet-owner bond and the joy of spoiling your furry friend. Happy pets, happy owners.',
+    'PRODUCT_HERO_SURFACE': 'Focus on quality, safety, and what makes this product better for your pet. Trust and reliability.',
+    'LIFESTYLE_HOME': 'Focus on pets as family and the cozy home life you share. Comfort, love, everyday moments.',
+
+    // FASHION
+    'MODEL_WEARING': 'Focus on confidence, style, and how the garment makes you feel. Effortless, put-together, authentic.',
+    'PRODUCT_CLEAN_HERO': 'Focus on quality, construction, and versatility. Wardrobe essential, investment piece, everyday luxury.',
+    'LIFESTYLE_EDITORIAL': 'Focus on lifestyle and personality. Express yourself, stand out, your unique style.',
+
+    // HOME
+    'PRODUCT_IN_ROOM': 'Focus on how the product transforms a space. Curated home, intentional living, design that matters.',
+    'PRODUCT_DETAIL_TEXTURE': 'Focus on craftsmanship, materials, and quality you can feel. Made to last, thoughtful design.',
+    'LIFESTYLE_WITH_PERSON': 'Focus on moments at home. Cozy mornings, hosting friends, your sanctuary.',
+
+    // FOOD
+    'PRODUCT_WITH_INGREDIENTS': 'Focus on real ingredients, honest food, and quality you can taste. Clean eating, transparent sourcing.',
+    'LIFESTYLE_CONSUMPTION': 'Focus on energy, wellness, and fueling your day. Feel good, perform better, treat yourself well.',
+
+    // GENERAL
+    'PRODUCT_LIFESTYLE_SURFACE': 'Focus on quality and how the product fits into daily life. Practical luxury, everyday essential.',
+    'LIFESTYLE_CONTEXT': 'Focus on the lifestyle and aspirational feeling. Part of your story, enhances your day.'
+  };
+
+  return copyAngles[variantType] || 'Focus on the key benefit that resonates with the customer. Speak to their desire, not just features.';
+}
+
+/**
  * Generate copy using Claude Sonnet.
  */
 async function generateWithClaude(
@@ -67,21 +117,33 @@ async function generateWithClaude(
   variants: AdVariant[],
   env: Env
 ): Promise<CopyGenerationResult> {
+  const category = brandDna.store_category as StoreCategory;
+
   const variantInstructions = variants.map(v => {
-    const angle = getCopyAngle(brandDna, v);
-    return `Variant ${v}: ${angle}`;
-  }).join('\n');
+    // Use category-specific angles
+    const categoryAngle = getCategoryCopyAngle(category, v);
+    // Also get brand DNA angle for additional context
+    const brandAngle = getCopyAngle(brandDna, v);
+    return `Variant ${v}:
+  Category direction: ${categoryAngle}
+  Brand angle: ${brandAngle}`;
+  }).join('\n\n');
 
   const bannedWords = brandDna.copy_framework.banned_words.join(', ');
   const powerWords = brandDna.copy_framework.power_words.join(', ');
 
   const systemPrompt = `You are a senior performance marketing copywriter with 10 years experience writing viral ecommerce ads for TikTok, Instagram, and Facebook.
 
+CATEGORY: ${category}
+BRAND VOICE: ${brandDna.identity.brand_voice}
+CORE VIBE: ${brandDna.identity.core_vibe}
+
 Your copy is known for being:
 - Specific to the actual product — never generic
 - Emotionally resonant — speaks to how the customer FEELS
 - Platform-native — TikTok copy feels like TikTok, not a billboard
 - Conversion-focused — every word earns its place
+- Category-appropriate — ${category} copy has its own rhythm and vocabulary
 
 STRICT RULES — violating these makes the copy bad:
 1. NEVER paraphrase the product description
@@ -92,6 +154,7 @@ STRICT RULES — violating these makes the copy bad:
 6. Write AS IF you already know this product sells well — confident, not pushy
 7. EVERY field must be a COMPLETE sentence or phrase — never cut off mid-word
 8. Use these power words when appropriate: ${powerWords}
+9. Match the brand voice: ${brandDna.identity.brand_voice} — every ad should sound like this brand
 
 Return ONLY valid JSON with no text outside the JSON object.`;
 

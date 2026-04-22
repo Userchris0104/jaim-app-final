@@ -460,6 +460,73 @@ export interface GenerateAdResponse {
     aiRationale: string;
     isChallenger: boolean;
     confidenceLevel: string;
+    // New fields for creative evolution
+    variantType?: string;
+    atmosphereUsed?: string;
+    surfaceUsed?: string;
+    isStyleRotation?: boolean;
+    isStyleExperiment?: boolean;
   }[];
   error?: string;
+}
+
+// ===========================================
+// CREATIVE EVOLUTION STATE
+// ===========================================
+
+export interface TestedStyle {
+  variantType: string;
+  surface: string;
+  atmosphere: string;
+  roas: number | null;
+  ctr: number | null;
+  generatedAt: string;
+}
+
+export interface WinningFormula {
+  variantType: string;
+  atmosphere: string;
+  copyAngle: string;
+  avgRoas: number;
+  confidence: 'low' | 'medium' | 'high';
+}
+
+export interface CreativeEvolutionState {
+  phase: GenerationPhase;
+
+  // What styles have been tested
+  testedStyles: TestedStyle[];
+
+  // What is currently winning
+  winningFormula: WinningFormula | null;
+
+  // What has never been tested yet
+  untestedCombinations: string[];
+
+  // When to force a new style test
+  lastNewStyleTestedAt: string | null;
+  newStyleTestFrequency: number; // every N generations
+
+  // Per-product tracking
+  generationCount: number;
+  lastStyleRotation: string | null;
+  testedAtmospheres: string[];
+  testedVariantTypes: string[];
+  untestedAtmospheres: string[];
+}
+
+export interface GenerationDecision {
+  variants: VariantDecision[];
+  isStyleRotation?: boolean;
+  isStyleExperiment?: boolean;
+  aiRationale: string;
+}
+
+export interface VariantDecision {
+  variant: AdVariant;
+  variantType: string;
+  atmosphere: string;
+  surface: string;
+  isChallenger: boolean;
+  mustDifferFrom?: string;
 }

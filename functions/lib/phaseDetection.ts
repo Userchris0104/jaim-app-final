@@ -1,8 +1,14 @@
 /**
- * Phase Detection - Smart Generation Logic
+ * Phase Detection - Smart Generation Logic with Creative Evolution
  *
  * // PHASE_GATING: AI reasoning unlocks only after 30 days AND 10+ published ads.
  * // Before that always 3 variants, no exceptions.
+ *
+ * // NEVER_STOP_TESTING: Even in EXPLOITING phase, 30% challengers must be
+ * // genuinely different from the winner — not micro-variations.
+ *
+ * // STYLE_ROTATION: Every 10 generations force a new untested style combination
+ * // to prevent creative staleness and ad fatigue.
  *
  * Three phases:
  *
@@ -15,13 +21,13 @@
  *   - Condition: 30+ days AND 10-30 published ads
  *   - Action: Generate 2 variants
  *     - 1 based on best performing style so far
- *     - 1 challenger to keep testing
+ *     - 1 challenger (genuinely different)
  *
  * EXPLOITING:
  *   - Condition: 30+ days AND 30+ published ads
  *   - Action: Use exploit/explore ratio
  *     - 70% chance: Generate 1 winning formula variant
- *     - 30% chance: Generate 1 challenger variant
+ *     - 30% chance: Generate 1 challenger variant (must differ)
  */
 
 import type {
@@ -29,8 +35,16 @@ import type {
   GenerationPhase,
   PhaseDetectionResult,
   AdVariant,
-  StoreRecord
+  StoreRecord,
+  CreativeEvolutionState,
+  WinningFormula
 } from './types';
+
+import {
+  CATEGORY_VARIANTS,
+  getVariationPools,
+  type VariantType
+} from './promptVariation';
 
 // ===========================================
 // CONSTANTS
@@ -40,6 +54,8 @@ const LEARNING_DAYS_THRESHOLD = 30;
 const LEARNING_ADS_THRESHOLD = 10;
 const OPTIMISING_ADS_THRESHOLD = 30;
 const EXPLOIT_PROBABILITY = 0.7;
+const STYLE_ROTATION_FREQUENCY = 10; // Every 10 generations
+const STYLE_ROTATION_DAYS = 14; // Or every 14 days
 
 // ===========================================
 // PHASE DETECTION
@@ -170,7 +186,7 @@ async function createOptimisingPhase(
     publishedAdsCount,
     variantsToGenerate: 2,
     useWinningFormula: true,
-    isChallenger: false,  // First variant is winner, second is challenger
+    isChallenger: false,
     confidence: 'medium',
     rationale: bestVariant
       ? `Using your best performing style (Variant ${bestVariant}) plus a challenger. ${OPTIMISING_ADS_THRESHOLD - publishedAdsCount} more ads until full optimization.`
@@ -217,6 +233,139 @@ async function createExploitingPhase(
 }
 
 // ===========================================
+// CREATIVE EVOLUTION STATE
+// ===========================================
+
+/**
+ * Load creative evolution state for a product.
+ */
+export async function loadCreativeEvolution(
+  productId: string,
+  env: Env
+): Promise<CreativeEvolutionState | null> {
+  const result = await env.DB.prepare(`
+    SELECT creative_evolution FROM products WHERE id = ?
+  `).bind(productId).first<{ creative_evolution: string | null }>();
+
+  if (!result?.creative_evolution) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(result.creative_evolution) as CreativeEvolutionState;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Save creative evolution state for a product.
+ */
+export async function saveCreativeEvolution(
+  productId: string,
+  state: CreativeEvolutionState,
+  env: Env
+): Promise<void> {
+  await env.DB.prepare(`
+    UPDATE products
+    SET creative_evolution = ?, updated_at = datetime('now')
+    WHERE id = ?
+  `).bind(JSON.stringify(state), productId).run();
+}
+
+/**
+ * Create initial creative evolution state.
+ */
+export function createInitialEvolutionState(phase: GenerationPhase): CreativeEvolutionState {
+  return {
+    phase,
+    testedStyles: [],
+    winningFormula: null,
+    untestedCombinations: [],
+    lastNewStyleTestedAt: null,
+    newStyleTestFrequency: STYLE_ROTATION_FREQUENCY,
+    generationCount: 0,
+    lastStyleRotation: null,
+    testedAtmospheres: [],
+    testedVariantTypes: [],
+    untestedAtmospheres: []
+  };
+}
+
+/**
+ * Check if style rotation is due.
+ */
+export function isStyleRotationDue(state: CreativeEvolutionState): boolean {
+  // Rotate every N generations
+  if (state.generationCount > 0 && state.generationCount % STYLE_ROTATION_FREQUENCY === 0) {
+    return true;
+  }
+
+  // Rotate if same atmosphere winning for more than 20 consecutive generations
+  const recentAtmospheres = state.testedStyles.slice(-20).map(s => s.atmosphere);
+  const uniqueAtmospheres = new Set(recentAtmospheres).size;
+  if (recentAtmospheres.length >= 20 && uniqueAtmospheres <= 2) {
+    return true;
+  }
+
+  // Rotate if it has been more than 14 days since a new style was tested
+  if (state.lastNewStyleTestedAt) {
+    const daysSince = getDaysSince(state.lastNewStyleTestedAt);
+    if (daysSince > STYLE_ROTATION_DAYS) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+/**
+ * Get days since a date string.
+ */
+function getDaysSince(dateStr: string): number {
+  const then = new Date(dateStr);
+  const now = new Date();
+  return Math.floor((now.getTime() - then.getTime()) / (1000 * 60 * 60 * 24));
+}
+
+/**
+ * Get an untested atmosphere for style rotation.
+ */
+export function getUntestedAtmosphere(
+  state: CreativeEvolutionState,
+  category: string
+): string | null {
+  const pools = getVariationPools(category as any);
+  const testedSet = new Set(state.testedAtmospheres);
+
+  for (const atmosphere of pools.atmospheres) {
+    if (!testedSet.has(atmosphere)) {
+      return atmosphere;
+    }
+  }
+
+  // All tested, return random
+  return pools.atmospheres[Math.floor(Math.random() * pools.atmospheres.length)];
+}
+
+/**
+ * Check if a challenger is genuinely different from winner.
+ */
+export function isChallengerDifferent(
+  challengerVariantType: string,
+  challengerAtmosphere: string,
+  winningFormula: WinningFormula | null
+): boolean {
+  if (!winningFormula) return true;
+
+  // Must differ in variant type OR atmosphere
+  const differentVariantType = challengerVariantType !== winningFormula.variantType;
+  const differentAtmosphere = challengerAtmosphere !== winningFormula.atmosphere;
+
+  return differentVariantType || differentAtmosphere;
+}
+
+// ===========================================
 // PERFORMANCE ANALYSIS
 // ===========================================
 
@@ -251,6 +400,46 @@ async function getBestPerformingVariant(
 }
 
 /**
+ * Get winning formula details.
+ */
+export async function getWinningFormula(
+  storeId: string,
+  env: Env
+): Promise<WinningFormula | null> {
+  const result = await env.DB.prepare(`
+    SELECT
+      ga.variant_type_used,
+      ga.atmosphere_used,
+      AVG(ap.roas) as avg_roas,
+      COUNT(*) as ad_count
+    FROM generated_ads ga
+    JOIN ad_performance ap ON ga.id = ap.ad_id
+    WHERE ga.store_id = ?
+      AND ga.variant_type_used IS NOT NULL
+      AND ap.roas > 0
+    GROUP BY ga.variant_type_used, ga.atmosphere_used
+    HAVING ad_count >= 3
+    ORDER BY avg_roas DESC
+    LIMIT 1
+  `).bind(storeId).first<{
+    variant_type_used: string;
+    atmosphere_used: string;
+    avg_roas: number;
+    ad_count: number;
+  }>();
+
+  if (!result) return null;
+
+  return {
+    variantType: result.variant_type_used,
+    atmosphere: result.atmosphere_used,
+    copyAngle: 'benefit', // Default, could be tracked separately
+    avgRoas: result.avg_roas,
+    confidence: result.ad_count >= 10 ? 'high' : result.ad_count >= 5 ? 'medium' : 'low'
+  };
+}
+
+/**
  * Get variants to generate based on phase.
  * Returns array of variant configs with challenger flags.
  */
@@ -274,7 +463,7 @@ export async function getVariantsToGenerate(
       const variants: AdVariant[] = ['A', 'B', 'C'];
 
       if (bestVariant) {
-        // Use best + random challenger
+        // Use best + random challenger (must be different)
         const challengers = variants.filter(v => v !== bestVariant);
         const challenger = challengers[Math.floor(Math.random() * challengers.length)];
         return [
@@ -283,7 +472,7 @@ export async function getVariantsToGenerate(
         ];
       } else {
         // No clear winner yet - use A + random other
-        const challenger = variants[Math.floor(Math.random() * 2) + 1] as AdVariant;  // B or C
+        const challenger = variants[Math.floor(Math.random() * 2) + 1] as AdVariant;
         return [
           { variant: 'A', isChallenger: false },
           { variant: challenger, isChallenger: true }
@@ -328,11 +517,19 @@ export function generateRationale(
   phase: PhaseDetectionResult,
   variant: AdVariant,
   isChallenger: boolean,
-  bestVariantHistorically: AdVariant | null
+  bestVariantHistorically: AdVariant | null,
+  isStyleRotation: boolean = false,
+  evolutionState?: CreativeEvolutionState
 ): string {
+  // Style rotation rationale
+  if (isStyleRotation && evolutionState) {
+    const winningAtmosphere = evolutionState.winningFormula?.atmosphere || 'current style';
+    return `Your ${winningAtmosphere} style has been your strongest performer. To keep your ads feeling fresh to your audience, JAIM is testing a new style today. If it beats your current winner, we will update your formula. If not, your proven style continues.`;
+  }
+
   switch (phase.phase) {
     case 'LEARNING':
-      return `Testing a ${getVariantDescription(variant)} style for this product. JAIM is building your performance baseline — after ${Math.max(0, LEARNING_DAYS_THRESHOLD - phase.storeAgeDays)} days and ${Math.max(0, LEARNING_ADS_THRESHOLD - phase.publishedAdsCount)} more published ads, you will see data-driven decisions here instead.`;
+      return `Testing ${getVariantDescription(variant)} style for this product. JAIM is building your performance baseline — after ${Math.max(0, LEARNING_DAYS_THRESHOLD - phase.storeAgeDays)} days and ${Math.max(0, LEARNING_ADS_THRESHOLD - phase.publishedAdsCount)} more published ads, you will see data-driven decisions here instead.`;
 
     case 'OPTIMISING':
       if (isChallenger) {
@@ -342,7 +539,7 @@ export function generateRationale(
 
     case 'EXPLOITING':
       if (isChallenger) {
-        return `${bestVariantHistorically ? `Your ${getVariantDescription(bestVariantHistorically)} format is consistently strong.` : 'Your current formula is performing well.'} This challenger tests a ${getVariantDescription(variant)} approach to see if a different style can beat your current best.`;
+        return `${bestVariantHistorically ? `Your ${getVariantDescription(bestVariantHistorically)} format is consistently strong.` : 'Your current formula is performing well.'} This challenger tests a ${getVariantDescription(variant)} approach — a combination you haven't tried yet. 30% of generations are challengers to keep creative fresh and discover potential new winners.`;
       }
       return `${getVariantDescription(variant)} has driven your best ROAS over the last ${phase.storeAgeDays} days. This ad follows that proven formula. Confidence: High based on ${phase.publishedAdsCount} published ads.`;
   }
