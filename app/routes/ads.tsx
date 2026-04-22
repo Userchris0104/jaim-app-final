@@ -165,15 +165,93 @@ function StatusBadge({ status, roas }: { status: string; roas: number }) {
   );
 }
 
+// Delete Confirmation Modal
+function DeleteConfirmModal({
+  ad,
+  onClose,
+  onConfirm,
+  isDeleting,
+}: {
+  ad: Ad | null;
+  onClose: () => void;
+  onConfirm: () => void;
+  isDeleting: boolean;
+}) {
+  useEffect(() => {
+    const handleEscape = (e: KeyboardEvent) => {
+      if (e.key === "Escape" && !isDeleting) onClose();
+    };
+    if (ad) {
+      document.addEventListener("keydown", handleEscape);
+    }
+    return () => {
+      document.removeEventListener("keydown", handleEscape);
+    };
+  }, [ad, onClose, isDeleting]);
+
+  if (!ad) return null;
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4"
+      style={{ backgroundColor: "rgba(0,0,0,0.6)" }}
+      onClick={isDeleting ? undefined : onClose}
+    >
+      <div
+        className="bg-white rounded-2xl max-w-md w-full shadow-2xl p-6"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="w-12 h-12 mx-auto mb-4 rounded-full bg-red-100 flex items-center justify-center">
+          <svg className="w-6 h-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+          </svg>
+        </div>
+        <h3 className="text-lg font-bold text-gray-900 text-center mb-2">Delete Ad?</h3>
+        <p className="text-gray-500 text-center mb-6">
+          This will permanently delete "<span className="font-medium text-gray-700">{ad.title}</span>" and its associated images. This action cannot be undone.
+        </p>
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            disabled={isDeleting}
+            className="flex-1 px-4 py-2.5 border border-gray-200 text-gray-700 rounded-xl font-medium hover:bg-gray-50 transition disabled:opacity-50"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={onConfirm}
+            disabled={isDeleting}
+            className="flex-1 px-4 py-2.5 bg-red-600 text-white rounded-xl font-medium hover:bg-red-700 transition disabled:opacity-50 flex items-center justify-center gap-2"
+          >
+            {isDeleting ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                </svg>
+                Deleting...
+              </>
+            ) : (
+              "Delete"
+            )}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // Ad Card component
 function AdCard({
   ad,
   maxRoas,
   onPreview,
+  onDelete,
 }: {
   ad: Ad;
   maxRoas: number;
   onPreview: () => void;
+  onDelete: () => void;
 }) {
   const roasBarWidth = maxRoas > 0 ? (ad.roas / maxRoas) * 100 : 0;
   const roasBarColor =
@@ -290,17 +368,31 @@ function AdCard({
             <span className="truncate">{ad.campaign.name}</span>
           </div>
 
-          {/* Action button */}
-          <button
-            onClick={onPreview}
-            className="p-2 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition"
-            title="Preview ad"
-          >
-            <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-            </svg>
-          </button>
+          {/* Action buttons */}
+          <div className="flex items-center gap-1">
+            <button
+              onClick={onPreview}
+              className="p-2 text-gray-400 hover:text-violet-600 hover:bg-violet-50 rounded-lg transition"
+              title="Preview ad"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+              </svg>
+            </button>
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                onDelete();
+              }}
+              className="p-2 text-gray-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition"
+              title="Delete ad"
+            >
+              <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -312,10 +404,12 @@ function AdPreviewModal({
   ad,
   onClose,
   onViewReport,
+  onDelete,
 }: {
   ad: Ad | null;
   onClose: () => void;
   onViewReport: (adId: string) => void;
+  onDelete: (ad: Ad) => void;
 }) {
   useEffect(() => {
     const handleEscape = (e: KeyboardEvent) => {
@@ -479,16 +573,30 @@ function AdPreviewModal({
             </div>
           </div>
 
-          {/* View Full Report Button */}
-          <button
-            onClick={() => onViewReport(ad.id)}
-            className="w-full mt-6 py-3 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
-          >
-            View Full Report
-            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
-            </svg>
-          </button>
+          {/* Action Buttons */}
+          <div className="flex gap-3 mt-6">
+            <button
+              onClick={() => {
+                onClose();
+                onDelete(ad);
+              }}
+              className="px-4 py-3 border border-red-200 text-red-600 hover:bg-red-50 font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+            >
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+              </svg>
+              Delete
+            </button>
+            <button
+              onClick={() => onViewReport(ad.id)}
+              className="flex-1 py-3 bg-violet-600 hover:bg-violet-700 text-white font-semibold rounded-xl transition-colors flex items-center justify-center gap-2"
+            >
+              View Full Report
+              <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+              </svg>
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -501,6 +609,8 @@ export default function AdsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [previewAd, setPreviewAd] = useState<Ad | null>(null);
+  const [deleteAd, setDeleteAd] = useState<Ad | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // URL params
   const [searchParams] = useSearchParams();
@@ -641,6 +751,37 @@ export default function AdsPage() {
   // Handle generate ads click
   const handleGenerateAds = () => {
     navigate("/products");
+  };
+
+  // Handle delete ad
+  const handleDeleteAd = async () => {
+    if (!deleteAd) return;
+
+    setIsDeleting(true);
+    try {
+      const response = await fetch(`/api/generate-ad?id=${deleteAd.id}`, {
+        method: 'DELETE',
+      });
+      const result = await response.json();
+
+      if (result.success) {
+        // Remove from local state
+        setData(prev => prev ? {
+          ...prev,
+          ads: prev.ads.filter(ad => ad.id !== deleteAd.id),
+          total: prev.total - 1
+        } : null);
+        setDeleteAd(null);
+      } else {
+        console.error('Delete failed:', result.error);
+        alert('Failed to delete ad: ' + (result.error || 'Unknown error'));
+      }
+    } catch (e) {
+      console.error('Delete error:', e);
+      alert('Failed to delete ad');
+    } finally {
+      setIsDeleting(false);
+    }
   };
 
   if (loading) {
@@ -897,6 +1038,7 @@ export default function AdsPage() {
               ad={ad}
               maxRoas={maxRoas}
               onPreview={() => setPreviewAd(ad)}
+              onDelete={() => setDeleteAd(ad)}
             />
           ))}
         </div>
@@ -910,6 +1052,15 @@ export default function AdsPage() {
           setPreviewAd(null);
           navigate(`/analytics?ad=${adId}`);
         }}
+        onDelete={(ad) => setDeleteAd(ad)}
+      />
+
+      {/* Delete Confirmation Modal */}
+      <DeleteConfirmModal
+        ad={deleteAd}
+        onClose={() => setDeleteAd(null)}
+        onConfirm={handleDeleteAd}
+        isDeleting={isDeleting}
       />
     </div>
   );
