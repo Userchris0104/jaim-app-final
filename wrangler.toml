@@ -27,6 +27,14 @@ USE_MOCK_PLATFORMS = "false"  # Set to "true" for local development with mock Ti
 # FAL_API_KEY = "your-fal-api-key-here"
 # Get your key at: https://fal.ai/dashboard
 
-# FashnAI — virtual try-on for fashion products
+# FashnAI — virtual try-on for fashion products (NOT used in ad generation pipeline)
 # FASHNAI_API_KEY = "your-fashnai-api-key-here"
 # Get your key at: https://fashn.ai
+
+# OpenAI — product image analysis (GPT-4o-mini vision)
+# OPENAI_API_KEY = "your-openai-api-key-here"
+# Get your key at: https://platform.openai.com
+
+# Photoroom — product fitting with shadows and relighting
+# PHOTOROOM_API_KEY = "your-photoroom-api-key-here"
+# Get your key at: https://www.photoroom.com/api
