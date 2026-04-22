@@ -106,9 +106,44 @@ CRITICAL RULES:
 4. nano_banana_prompt must be natural language sentences, NOT tag lists
 5. Do NOT use these words in prompts: "masterpiece, 4k, trending, high quality" - they hurt quality on Nano Banana 2`;
 
+  // Get category-specific scene examples
+  const sceneExamples = storeCategory === 'FASHION'
+    ? `
+FASHION SCENE EXAMPLES (make each variant VISUALLY DISTINCT):
+
+Variant A (Minimal) example:
+"A minimalist fashion photography studio. Pure white seamless paper backdrop. Soft diffused lighting from the left side. Clean polished concrete floor. No props, no furniture. Scandinavian minimal aesthetic with subtle shadows. [empty center zone instruction] Commercial photography quality."
+
+Variant B (Lifestyle) example:
+"A sunlit urban loft apartment interior. Raw exposed red brick wall on the left side. Warm honey-toned wooden floorboards. Soft afternoon sunlight streaming through large industrial windows, casting long warm shadows. A vintage tan leather armchair partially visible in the background, out of focus with beautiful bokeh. Plants and natural textures. [empty center zone instruction] Editorial lifestyle quality."
+
+Variant C (Editorial) example:
+"A dramatic fashion editorial setting. Dark charcoal textured concrete wall with visible grain and imperfections. Single strong spotlight from the upper right creating deep dramatic shadows. High contrast, moody atmosphere. Black floor fading to shadow. A thin strip of warm amber accent light along the bottom edge. Cinematic and bold. [empty center zone instruction] Fashion editorial quality."
+`
+    : `
+SCENE EXAMPLES (make each variant VISUALLY DISTINCT):
+
+Variant A (Minimal) example:
+"A clean white surface with soft diffused lighting from above. Minimal scandinavian aesthetic with subtle shadows. Elegant simplicity. [empty center zone instruction] Commercial photography quality."
+
+Variant B (Lifestyle) example:
+"A warm lifestyle scene with natural window light streaming in from the left. Cozy interior with soft textures, wooden surfaces, and a plant in the background. Morning light atmosphere. [empty center zone instruction] Editorial lifestyle quality."
+
+Variant C (Editorial) example:
+"A bold creative composition with dramatic directional spotlight from above. High contrast editorial mood. Dark background with artistic shadows creating depth and drama. [empty center zone instruction] Fashion editorial quality."
+`;
+
   const userPrompt = `Analyze this store and generate Brand DNA:
 
 ${storeContext}
+
+CRITICAL FOR SCENE TEMPLATES:
+- Each variant must look COMPLETELY DIFFERENT from the others
+- Variant A = BRIGHT, minimal, white/light backgrounds, clean studio feel
+- Variant B = WARM, lifestyle context, natural textures, brick/wood/plants, environmental
+- Variant C = DARK, dramatic, moody, high contrast, editorial shadows
+
+${sceneExamples}
 
 Return this exact JSON structure:
 {
@@ -143,7 +178,7 @@ Return this exact JSON structure:
   "scene_templates": {
     "variant_a_clean": {
       "direction": "minimal",
-      "nano_banana_prompt": "natural language scene description for clean minimal variant. MUST include empty center zone instruction. End with: Commercial photography quality.",
+      "nano_banana_prompt": "BRIGHT minimal scene. White/light background. Studio lighting. Must be visually distinct from variants B and C. MUST include empty center zone instruction. End with: Commercial photography quality.",
       "photoroom_config": {
         "shadow_mode": "ai-soft",
         "lighting_mode": "ai-auto",
@@ -152,7 +187,7 @@ Return this exact JSON structure:
     },
     "variant_b_lifestyle": {
       "direction": "contextual",
-      "nano_banana_prompt": "natural language scene description for lifestyle variant. MUST include empty center zone instruction. End with: Editorial lifestyle quality.",
+      "nano_banana_prompt": "WARM lifestyle scene. Natural textures, brick, wood, plants. Environmental context. Must be visually distinct from variants A and C. MUST include empty center zone instruction. End with: Editorial lifestyle quality.",
       "photoroom_config": {
         "shadow_mode": "ai-soft",
         "lighting_mode": "ai-auto",
@@ -161,7 +196,7 @@ Return this exact JSON structure:
     },
     "variant_c_editorial": {
       "direction": "bold",
-      "nano_banana_prompt": "natural language scene description for bold editorial variant. MUST include empty center zone instruction. End with: Fashion editorial quality.",
+      "nano_banana_prompt": "DARK dramatic scene. High contrast, moody, editorial shadows. Bold and cinematic. Must be visually distinct from variants A and B. MUST include empty center zone instruction. End with: Fashion editorial quality.",
       "photoroom_config": {
         "shadow_mode": "ai-hard",
         "lighting_mode": "dramatic",
@@ -304,10 +339,85 @@ function validateScenePrompts(dna: BrandDNA): void {
 }
 
 /**
+ * Get FASHION-specific scene templates with highly distinct prompts.
+ */
+function getFashionSceneTemplates(centerZone: string) {
+  return {
+    variant_a_clean: {
+      direction: 'minimal',
+      nano_banana_prompt: `A minimalist fashion photography studio. Pure white seamless paper backdrop filling the entire frame. Soft diffused lighting from the left side. Clean polished concrete floor. No props, no furniture, no distractions. Scandinavian minimal aesthetic with subtle shadows. ${centerZone} Commercial photography quality.`,
+      photoroom_config: {
+        shadow_mode: 'ai-soft',
+        lighting_mode: 'ai-auto',
+        background_blur: 0
+      }
+    },
+    variant_b_lifestyle: {
+      direction: 'contextual',
+      nano_banana_prompt: `A sunlit urban loft apartment interior. Raw exposed red brick wall on the left side. Warm honey-toned wooden floorboards. Soft afternoon sunlight streaming through large industrial windows, casting long warm shadows. A vintage tan leather armchair partially visible in the background, out of focus with beautiful bokeh. Plants and natural textures. ${centerZone} Editorial lifestyle quality.`,
+      photoroom_config: {
+        shadow_mode: 'ai-soft',
+        lighting_mode: 'ai-auto',
+        background_blur: 20
+      }
+    },
+    variant_c_editorial: {
+      direction: 'bold',
+      nano_banana_prompt: `A dramatic fashion editorial setting. Dark charcoal textured concrete wall with visible grain and imperfections. Single strong spotlight from the upper right creating deep dramatic shadows. High contrast, moody atmosphere. Black floor fading to shadow. A thin strip of warm amber accent light along the bottom edge. Cinematic and bold. ${centerZone} Fashion editorial quality.`,
+      photoroom_config: {
+        shadow_mode: 'ai-hard',
+        lighting_mode: 'dramatic',
+        background_blur: 0
+      }
+    }
+  };
+}
+
+/**
+ * Get default scene templates for non-fashion stores.
+ */
+function getDefaultSceneTemplates(centerZone: string) {
+  return {
+    variant_a_clean: {
+      direction: 'minimal',
+      nano_banana_prompt: `A clean white surface with soft diffused lighting from above. Minimal scandinavian aesthetic with subtle shadows. Elegant simplicity. ${centerZone} Commercial photography quality.`,
+      photoroom_config: {
+        shadow_mode: 'ai-soft',
+        lighting_mode: 'ai-auto',
+        background_blur: 0
+      }
+    },
+    variant_b_lifestyle: {
+      direction: 'contextual',
+      nano_banana_prompt: `A warm lifestyle scene with natural window light streaming in from the left. Cozy interior with soft textures, wooden surfaces, and a plant in the background. Morning light atmosphere. ${centerZone} Editorial lifestyle quality.`,
+      photoroom_config: {
+        shadow_mode: 'ai-soft',
+        lighting_mode: 'ai-auto',
+        background_blur: 15
+      }
+    },
+    variant_c_editorial: {
+      direction: 'bold',
+      nano_banana_prompt: `A bold creative composition with dramatic directional spotlight from above. High contrast editorial mood. Dark background with artistic shadows creating depth and drama. ${centerZone} Fashion editorial quality.`,
+      photoroom_config: {
+        shadow_mode: 'ai-hard',
+        lighting_mode: 'dramatic',
+        background_blur: 0
+      }
+    }
+  };
+}
+
+/**
  * Create fallback DNA when generation fails.
  */
 function createFallbackDNA(store: StoreRecord): BrandDNA {
   const centerZone = 'Leave a clearly empty rectangular space in the center of the frame approximately 60% of the composition. Do not generate any product, object, or physical item in that center zone. Generate only the background environment.';
+
+  const storeCategory = (store.store_category as StoreCategory) || 'GENERAL';
+  const sceneTemplates = storeCategory === 'FASHION'
+    ? getFashionSceneTemplates(centerZone)
+    : getDefaultSceneTemplates(centerZone);
 
   return {
     brand_name: store.store_name || 'Brand',
@@ -329,7 +439,7 @@ function createFallbackDNA(store: StoreRecord): BrandDNA {
       background_preference: 'clean-minimal',
       depth_of_field: 'medium'
     },
-    store_category: (store.store_category as StoreCategory) || 'GENERAL',
+    store_category: storeCategory,
     model_direction: {
       use_models: false,
       gender_default: 'NEUTRAL',
@@ -338,35 +448,7 @@ function createFallbackDNA(store: StoreRecord): BrandDNA {
       expression: 'confident',
       setting_preference: 'Studio or minimal lifestyle setting'
     },
-    scene_templates: {
-      variant_a_clean: {
-        direction: 'minimal',
-        nano_banana_prompt: `A clean white surface with soft diffused lighting from above. Minimal scandinavian aesthetic with subtle shadows. Elegant simplicity. ${centerZone} Commercial photography quality.`,
-        photoroom_config: {
-          shadow_mode: 'ai-soft',
-          lighting_mode: 'ai-auto',
-          background_blur: 0
-        }
-      },
-      variant_b_lifestyle: {
-        direction: 'contextual',
-        nano_banana_prompt: `A warm lifestyle scene with natural window light. Cozy interior with soft textures. Morning light atmosphere. ${centerZone} Editorial lifestyle quality.`,
-        photoroom_config: {
-          shadow_mode: 'ai-soft',
-          lighting_mode: 'ai-auto',
-          background_blur: 15
-        }
-      },
-      variant_c_editorial: {
-        direction: 'bold',
-        nano_banana_prompt: `A bold creative composition with dramatic directional lighting. High contrast editorial mood. Artistic shadows creating depth. ${centerZone} Fashion editorial quality.`,
-        photoroom_config: {
-          shadow_mode: 'ai-hard',
-          lighting_mode: 'dramatic',
-          background_blur: 0
-        }
-      }
-    },
+    scene_templates: sceneTemplates,
     copy_framework: {
       variant_a_angle: 'benefit — what it does for the customer',
       variant_b_angle: 'emotion — how it feels to use it',
