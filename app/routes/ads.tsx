@@ -19,7 +19,8 @@ interface Ad {
   // Compositing data for CSS overlay
   sceneImageUrl: string | null;
   productImageUrl: string | null;
-  compositingMethod: 'css_overlay' | 'server_composite' | 'fashn_model' | 'bria_product_shot' | 'shopify_only' | 'none';
+  compositedImageUrl: string | null;
+  compositingMethod: 'css_overlay' | 'scene_overlay' | 'server_composite' | 'fashn_model' | 'bria_product_shot' | 'shopify_only' | 'none';
   // A/B Testing
   abVariant: 'A' | 'B' | 'C' | null;
   abGroup: string | null;
@@ -263,8 +264,13 @@ function AdCard({
     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-violet-200 transition-all group">
       {/* Image Area - 4:5 aspect ratio with compositing method support */}
       <div className="relative aspect-[4/5] bg-gray-100 overflow-hidden">
-        {/* CSS Overlay: Scene background + Product overlay */}
-        {ad.compositingMethod === 'css_overlay' && ad.sceneImageUrl && ad.productImageUrl ? (
+        {/* CSS Overlay: When we have scene + product but Photoroom failed (composited === scene) */}
+        {ad.sceneImageUrl && ad.productImageUrl && (
+          ad.compositingMethod === 'css_overlay' ||
+          ad.compositingMethod === 'scene_overlay' ||
+          (ad.compositedImageUrl === ad.sceneImageUrl) ||
+          (!ad.compositedImageUrl && ad.sceneImageUrl)
+        ) ? (
           <>
             <img
               src={ad.sceneImageUrl}
@@ -274,8 +280,8 @@ function AdCard({
             <img
               src={ad.productImageUrl}
               alt={ad.title}
-              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[55%] h-auto object-contain"
-              style={{ filter: 'drop-shadow(0 4px 12px rgba(0, 0, 0, 0.15))' }}
+              className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[55%] h-[55%] object-contain"
+              style={{ filter: 'drop-shadow(0 8px 24px rgba(0, 0, 0, 0.25))' }}
             />
           </>
         ) : /* FASHN or Bria: Single composited image */
@@ -441,8 +447,13 @@ function AdPreviewModal({
       >
         {/* Left: Ad Creative with CSS overlay compositing */}
         <div className="w-1/2 bg-gray-100 relative overflow-hidden">
-          {/* CSS Overlay Compositing: Scene background + Product overlay */}
-          {ad.compositingMethod === 'css_overlay' && ad.sceneImageUrl && ad.productImageUrl ? (
+          {/* CSS Overlay: When we have scene + product but Photoroom failed */}
+          {ad.sceneImageUrl && ad.productImageUrl && (
+            ad.compositingMethod === 'css_overlay' ||
+            ad.compositingMethod === 'scene_overlay' ||
+            (ad.compositedImageUrl === ad.sceneImageUrl) ||
+            (!ad.compositedImageUrl && ad.sceneImageUrl)
+          ) ? (
             <>
               {/* Scene background */}
               <img
@@ -454,8 +465,8 @@ function AdPreviewModal({
               <img
                 src={ad.productImageUrl}
                 alt={ad.title}
-                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[55%] h-auto object-contain"
-                style={{ filter: 'drop-shadow(0 8px 24px rgba(0, 0, 0, 0.2))' }}
+                className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[55%] h-[55%] object-contain"
+                style={{ filter: 'drop-shadow(0 8px 24px rgba(0, 0, 0, 0.25))' }}
               />
             </>
           ) : ad.imageUrl ? (

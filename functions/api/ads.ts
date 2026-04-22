@@ -76,7 +76,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       SELECT
         ga.*,
         p.title as product_title,
-        p.image_url as product_image
+        p.image_url as product_image,
+        p.clean_image_url as clean_product_image
       FROM generated_ads ga
       LEFT JOIN products p ON ga.product_id = p.id
       WHERE ga.store_id = ?
@@ -109,7 +110,9 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         imageUrl: imageUrl,
         // Compositing data for CSS overlay
         sceneImageUrl: ad.scene_image_url,
-        productImageUrl: ad.product_image_url,
+        // Use clean (background-removed) product image for CSS overlay when available
+        productImageUrl: ad.clean_product_image || ad.product_image_url,
+        compositedImageUrl: ad.composited_image_url,
         compositingMethod: ad.compositing_method || 'none',
         // A/B Testing
         abVariant: ad.ab_variant || null,
