@@ -4,6 +4,9 @@
  * POST /api/generate-ad - Generate ad variants for a product
  * GET /api/generate-ad?id=<adId> - Get ad status
  * GET /api/generate-ad?abGroup=<groupId> - Get all variants in group
+ * DELETE /api/generate-ad?id=<adId> - Delete single ad
+ * DELETE /api/generate-ad?abGroup=<groupId> - Delete all variants in group
+ * DELETE /api/generate-ad?productId=<productId> - Delete all ads for product
  *
  * PROVIDER RULES ENFORCED:
  *
@@ -177,6 +180,140 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
     return Response.json({ error: error.message }, { status: 500 });
   }
 };
+
+// ===========================================
+// DELETE HANDLER - DELETE ADS
+// ===========================================
+
+export const onRequestDelete: PagesFunction<Env> = async (context) => {
+  const { env, request } = context;
+  const url = new URL(request.url);
+  const adId = url.searchParams.get('id');
+  const abGroup = url.searchParams.get('abGroup');
+  const productId = url.searchParams.get('productId');
+
+  try {
+    const { store } = await getStoreFromCookieOrFallback(env.DB, request);
+
+    if (!store) {
+      return Response.json({ error: 'No store connected' }, { status: 400 });
+    }
+
+    // Delete by A/B group (all variants)
+    if (abGroup) {
+      const ads = await env.DB.prepare(
+        'SELECT id, scene_image_url, composited_image_url FROM generated_ads WHERE ab_group = ? AND store_id = ?'
+      ).bind(abGroup, store.id).all();
+
+      if (!ads.results?.length) {
+        return Response.json({ error: 'No ads found in group' }, { status: 404 });
+      }
+
+      // Delete from database
+      await env.DB.prepare(
+        'DELETE FROM generated_ads WHERE ab_group = ? AND store_id = ?'
+      ).bind(abGroup, store.id).run();
+
+      // Clean up R2 images
+      await deleteAdImages(ads.results, env);
+
+      console.log('[API] Deleted A/B group:', abGroup, 'count:', ads.results.length);
+
+      return Response.json({
+        success: true,
+        message: `Deleted ${ads.results.length} ads in group ${abGroup}`,
+        deletedCount: ads.results.length
+      });
+    }
+
+    // Delete all ads for a product
+    if (productId) {
+      const ads = await env.DB.prepare(
+        'SELECT id, scene_image_url, composited_image_url FROM generated_ads WHERE product_id = ? AND store_id = ?'
+      ).bind(productId, store.id).all();
+
+      if (!ads.results?.length) {
+        return Response.json({ error: 'No ads found for product' }, { status: 404 });
+      }
+
+      // Delete from database
+      await env.DB.prepare(
+        'DELETE FROM generated_ads WHERE product_id = ? AND store_id = ?'
+      ).bind(productId, store.id).run();
+
+      // Clean up R2 images
+      await deleteAdImages(ads.results, env);
+
+      console.log('[API] Deleted ads for product:', productId, 'count:', ads.results.length);
+
+      return Response.json({
+        success: true,
+        message: `Deleted ${ads.results.length} ads for product`,
+        deletedCount: ads.results.length
+      });
+    }
+
+    // Delete single ad by ID
+    if (!adId) {
+      return Response.json({ error: 'Ad ID, abGroup, or productId required' }, { status: 400 });
+    }
+
+    const ad = await env.DB.prepare(
+      'SELECT id, scene_image_url, composited_image_url FROM generated_ads WHERE id = ? AND store_id = ?'
+    ).bind(adId, store.id).first();
+
+    if (!ad) {
+      return Response.json({ error: 'Ad not found' }, { status: 404 });
+    }
+
+    // Delete from database
+    await env.DB.prepare(
+      'DELETE FROM generated_ads WHERE id = ? AND store_id = ?'
+    ).bind(adId, store.id).run();
+
+    // Clean up R2 images
+    await deleteAdImages([ad], env);
+
+    console.log('[API] Deleted ad:', adId);
+
+    return Response.json({
+      success: true,
+      message: `Deleted ad ${adId}`,
+      deletedCount: 1
+    });
+
+  } catch (error: any) {
+    console.error('[API] Delete error:', error);
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+};
+
+/**
+ * Delete ad images from R2 storage.
+ */
+async function deleteAdImages(ads: any[], env: Env): Promise<void> {
+  const keysToDelete: string[] = [];
+
+  for (const ad of ads) {
+    // Extract R2 keys from URLs
+    if (ad.scene_image_url?.includes('key=')) {
+      const key = decodeURIComponent(ad.scene_image_url.split('key=')[1]);
+      keysToDelete.push(key);
+    }
+    if (ad.composited_image_url?.includes('key=') && ad.composited_image_url !== ad.scene_image_url) {
+      const key = decodeURIComponent(ad.composited_image_url.split('key=')[1]);
+      keysToDelete.push(key);
+    }
+  }
+
+  // Delete from R2 in parallel
+  if (keysToDelete.length > 0) {
+    await Promise.allSettled(
+      keysToDelete.map(key => env.R2.delete(key))
+    );
+    console.log('[API] Deleted', keysToDelete.length, 'images from R2');
+  }
+}
 
 // ===========================================
 // RESPONSE FORMATTING
