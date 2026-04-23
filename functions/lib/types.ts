@@ -5,10 +5,15 @@
  *
  * PROVIDER RULES (referenced throughout codebase):
  *
- * // NANO_BANANA_ONLY: Primary scene generator
- * // Uses aspect_ratio not image_size
- * // Natural language prompts only
- * // fal-ai/nano-banana-2
+ * // GEMINI_ONLY: Google Gemini is the only image generation provider
+ * // Model: gemini-3.1-flash-image-preview
+ * // Cost: $0.067/image standard, $0.034/image batch
+ *
+ * // NO_FAL: fal.ai completely removed from pipeline
+ * // No Bria RMBG, no FLUX, no Nano Banana
+ *
+ * // NO_BACKGROUND_REMOVAL: Gemini handles product integration natively
+ * // Using original Shopify product images directly
  *
  * // ZERO_HALLUCINATION: Product image always from Shopify.
  * // AI generates SCENE only. Empty center zone is explicit in every prompt.
@@ -18,17 +23,6 @@
  *
  * // GPT_VISION_ONLY: OpenAI GPT-4o-mini used ONLY for product image to JSON analysis.
  * // detail: low, strict JSON schema mode.
- *
- * // BRIA_RMBG: Background removal only. fal-ai/bria/background/remove
- * // Cache result — never remove same image twice.
- *
- * // PHOTOROOM_FITTING: Optional but important. Graceful fallback if key missing.
- * // This is what makes ads look professional.
- *
- * // FASHN_REMOVED: FASHN is NOT used in this pipeline.
- * // It is a virtual try-on tool not ad generation.
- *
- * // FLUX_FALLBACK: FLUX is emergency fallback only if Nano Banana 2 fails after 2 retries.
  *
  * // PHASE_GATING: AI reasoning unlocks only after 30 days AND 10+ published ads.
  * // Before that always 3 variants, no exceptions.
@@ -44,11 +38,13 @@ export interface Env {
   DB: D1Database;
   R2: R2Bucket;
   ANTHROPIC_API_KEY: string;
-  FAL_API_KEY: string;
+  GEMINI_API_KEY: string;      // Primary image generation (gemini-3.1-flash-image-preview)
   OPENAI_API_KEY: string;
-  PHOTOROOM_API_KEY?: string;  // Optional - graceful fallback if missing
   R2_PUBLIC_URL?: string;
-  GEMINI_API_KEY?: string;     // Emergency fallback only
+  // DEPRECATED - no longer used:
+  FAL_API_KEY?: string;        // fal.ai removed from pipeline
+  PHOTOROOM_API_KEY?: string;  // Photoroom removed from pipeline
+  FASHNAI_API_KEY?: string;    // Reserved for future model-wearing generation
 }
 
 // ===========================================
@@ -302,11 +298,13 @@ export interface VariantConfig {
 export interface SceneGenerationResult {
   success: boolean;
   sceneUrl: string | null;
-  provider: 'gemini' | 'nano-banana-2' | 'flux-fallback';
+  provider: 'gemini';  // Gemini is the only provider now
   prompt: string;
   error?: string;
 }
 
+// DEPRECATED: Bria RMBG removed from pipeline
+// Keeping for backward compatibility with existing code
 export interface BackgroundRemovalResult {
   success: boolean;
   cleanImageUrl: string | null;
@@ -314,6 +312,8 @@ export interface BackgroundRemovalResult {
   error?: string;
 }
 
+// DEPRECATED: Photoroom removed from pipeline
+// Keeping for backward compatibility with existing code
 export interface ProductFittingResult {
   success: boolean;
   compositedImageUrl: string | null;
@@ -371,9 +371,8 @@ export type CompositingMethod =
 export type ImageProvider =
   | 'GEMINI_PRO'          // gemini-3.1-flash-image-preview standard ($0.067/image)
   | 'GEMINI_BATCH'        // gemini-3.1-flash-image-preview batch ($0.034/image)
-  | 'BRIA_RMBG'           // fal.ai background removal only
-  | 'PRODUCT_ONLY'        // clean product image fallback
-  | 'SHOPIFY_ORIGINAL';   // last resort fallback
+  | 'PRODUCT_ONLY'        // Gemini failed, using product image fallback
+  | 'SHOPIFY_ORIGINAL';   // Last resort fallback
 
 // ===========================================
 // DATABASE RECORDS

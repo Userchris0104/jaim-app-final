@@ -10,10 +10,15 @@
  *
  * PROVIDER RULES ENFORCED:
  *
- * // NANO_BANANA_ONLY: Primary scene generator
- * // Uses aspect_ratio not image_size
- * // Natural language prompts only
- * // fal-ai/nano-banana-2
+ * // GEMINI_ONLY: Google Gemini is the only image generation provider
+ * // Model: gemini-3.1-flash-image-preview
+ * // Cost: $0.067/image standard, $0.034/image batch
+ *
+ * // NO_FAL: fal.ai completely removed from pipeline
+ * // No Bria RMBG, no FLUX, no Nano Banana
+ *
+ * // NO_BACKGROUND_REMOVAL: Gemini handles product integration natively
+ * // Using original Shopify product images directly
  *
  * // ZERO_HALLUCINATION: Product image always from Shopify.
  * // AI generates SCENE only. Empty center zone is explicit in every prompt.
@@ -23,17 +28,6 @@
  *
  * // GPT_VISION_ONLY: OpenAI GPT-4o-mini used ONLY for product image to JSON analysis.
  * // detail: low, strict JSON schema mode.
- *
- * // BRIA_RMBG: Background removal only. fal-ai/bria/background/remove
- * // Cache result — never remove same image twice.
- *
- * // PHOTOROOM_FITTING: Optional but important. Graceful fallback if key missing.
- * // This is what makes ads look professional.
- *
- * // FASHN_REMOVED: FASHN is NOT used in this pipeline.
- * // It is a virtual try-on tool not ad generation.
- *
- * // FLUX_FALLBACK: FLUX is emergency fallback only if Nano Banana 2 fails after 2 retries.
  *
  * // PHASE_GATING: AI reasoning unlocks only after 30 days AND 10+ published ads.
  * // Before that always 3 variants, no exceptions.

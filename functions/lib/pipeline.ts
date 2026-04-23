@@ -9,16 +9,17 @@
  * 2. Load Brand DNA (generate if missing)
  * 3. Load Product Style (analyze if missing, non-blocking)
  * 4. Load Creative Evolution State
- * 5. Remove product background (cache result)
- * 6. Decide variants based on phase + evolution
- * 7. Generate scenes AND copy IN PARALLEL
- * 8. Fit product into scenes (if using text-to-image)
- * 9. Build AI rationale for each variant
- * 10. Save all variants to database with metadata
- * 11. Update creative evolution state
- * 12. Return results
+ * 5. Decide variants based on phase + evolution
+ * 6. Generate scenes AND copy IN PARALLEL (Gemini handles product integration)
+ * 7. Build AI rationale for each variant
+ * 8. Save all variants to database with metadata
+ * 9. Update creative evolution state
+ * 10. Return results
  *
  * PROVIDER RULES ENFORCED:
+ * // GEMINI_ONLY: Google Gemini is the only image generation provider
+ * // NO_BRIA: Background removal removed - Gemini handles product natively
+ * // NO_FAL: fal.ai completely removed from pipeline
  * // ZERO_HALLUCINATION: Product image always from Shopify
  * // PARALLEL: Image gen and copy gen always run in parallel
  * // PHASE_GATING: AI reasoning unlocks only after 30 days AND 10+ published ads
@@ -51,9 +52,11 @@ import {
 import { getBrandDNA } from './brandDna';
 import { getProductStyle } from './productStyle';
 import { generateScenesParallel, type ExtendedSceneResult } from './sceneGeneration';
-import { removeBackground, compositeProductIntoScene } from './productFitting';
 import { generateCopyForVariants } from './copyGeneration';
 import { getVariantType, requiresTextToImage, isModelWearingVariant, type VariantType } from './promptVariation';
+
+// clean_image_url deprecated — Bria RMBG removed from pipeline
+// Using original Shopify image directly with Gemini
 
 // ===========================================
 // MAIN PIPELINE FUNCTION
@@ -115,34 +118,12 @@ export async function runPipeline(
     }
 
     // ===========================================
-    // STEP 5: Remove Product Background (cached)
+    // STEP 5: Get Product Image URL
     // ===========================================
-    const rmbgResult = await removeBackground(product, env);
-    console.log('[PIPELINE] Background removal:', {
-      success: rmbgResult.success,
-      cached: rmbgResult.cached
-    });
-
-    // Get the clean product image URL (absolute URL for edit endpoint)
-    // Try R2 URL first, fall back to original Shopify image
-    let cleanProductImageUrl = getAbsoluteUrl(rmbgResult.cleanImageUrl, env);
-
-    // CRITICAL: If R2 URL is not available, use original Shopify image
-    // The Edit endpoint REQUIRES an absolute URL that fal.ai can fetch
-    if (!cleanProductImageUrl) {
-      const originalImageUrl = getProductImageUrl(product);
-      if (originalImageUrl && (originalImageUrl.startsWith('http://') || originalImageUrl.startsWith('https://'))) {
-        cleanProductImageUrl = originalImageUrl;
-        console.log('[PIPELINE] Using original Shopify image (R2 URL not available):', originalImageUrl);
-      }
-    }
-
-    console.log('[PIPELINE] Product image URL for scene generation:', {
-      r2CleanUrl: rmbgResult.cleanImageUrl,
-      absoluteUrl: cleanProductImageUrl,
-      hasR2PublicUrl: !!env.R2_PUBLIC_URL,
-      usingFallback: !getAbsoluteUrl(rmbgResult.cleanImageUrl, env)
-    });
+    // No background removal needed - Gemini handles product integration natively
+    // Using original Shopify product image directly
+    const productImageUrl = getProductImageUrl(product);
+    console.log('[PIPELINE] Using Shopify product image directly:', productImageUrl);
 
     // ===========================================
     // STEP 6: Decide Variants Based on Phase
@@ -160,14 +141,14 @@ export async function runPipeline(
     console.log('[PIPELINE] Starting parallel generation (scenes + copy)...');
 
     const [scenesMap, copyResult] = await Promise.all([
-      // Generate all scenes in parallel (now with variation metadata)
-      // Passes both clean product image and original Shopify image for fallback chain
+      // Generate all scenes in parallel (Gemini handles product integration)
+      // No background removal needed - using Shopify image directly
       generateScenesParallel(
         variants,
         brandDna,
         productStyle,
-        cleanProductImageUrl,
-        product.image_url,  // Original Shopify image for fallback
+        productImageUrl,      // Primary product image
+        productImageUrl,      // Same image for fallback (no clean version)
         product.store_id,
         env
       ),
@@ -232,23 +213,9 @@ export async function runPipeline(
         // Product variants using Edit endpoint: AI composited the product
         compositingMethod = 'ai_composited';
       } else {
-        // Text-to-image scenes: Need CSS overlay or Photoroom compositing
+        // Text-to-image scenes: CSS overlay (Gemini generated scene only)
+        // No Photoroom - product overlay handled by frontend if needed
         compositingMethod = 'scene_overlay';
-
-        if (cleanProductImageUrl) {
-          const fittingResult = await compositeProductIntoScene(
-            product,
-            sceneResult.sceneUrl,
-            { shadow_mode: 'ai-soft', lighting_mode: 'ai-auto', background_blur: 0 },
-            variant,
-            env
-          );
-
-          if (fittingResult.success && fittingResult.compositedImageUrl) {
-            finalImageUrl = fittingResult.compositedImageUrl;
-            compositingMethod = fittingResult.provider === 'photoroom' ? 'photoroom_fitted' : 'scene_overlay';
-          }
-        }
       }
 
       // ===========================================
@@ -268,8 +235,8 @@ export async function runPipeline(
         variant,
         success: true,
         sceneImageUrl: sceneResult.sceneUrl,
-        productImageUrl: getProductImageUrl(product),
-        cleanProductImageUrl: rmbgResult.cleanImageUrl,
+        productImageUrl: productImageUrl,
+        cleanProductImageUrl: null,  // Bria RMBG removed - no clean version
         compositedImageUrl: finalImageUrl,
         headline: variantCopy.headline,
         primaryText: variantCopy.primaryText,
@@ -596,6 +563,6 @@ async function validateModelWearing(
 export { detectPhase } from './phaseDetection';
 export { getBrandDNA } from './brandDna';
 export { getProductStyle } from './productStyle';
-export { removeBackground } from './productFitting';
 export { generateCopyForVariants } from './copyGeneration';
 export { generateScene } from './sceneGeneration';
+// removeBackground export removed - Bria RMBG no longer used

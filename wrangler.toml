@@ -27,21 +27,24 @@ USE_MOCK_PLATFORMS = "false"  # Set to "true" for local development with mock Ti
 # GEMINI_API_KEY = "your-gemini-api-key-here"
 # Get your key at: https://aistudio.google.com/apikey
 # Model: gemini-3.1-flash-image-preview
-# Cost: $0.039/image (standard), $0.0195/image (batch)
-
-# fal.ai — background removal only (Bria RMBG)
-# FAL_API_KEY = "your-fal-api-key-here"
-# Get your key at: https://fal.ai/dashboard
-# Cost: $0.018/image for background removal
-
-# FashnAI — virtual try-on for fashion products (NOT used in ad generation pipeline)
-# FASHNAI_API_KEY = "your-fashnai-api-key-here"
-# Get your key at: https://fashn.ai
+# Cost: $0.067/image (standard), $0.034/image (batch)
 
 # OpenAI — product image analysis (GPT-4o-mini vision)
 # OPENAI_API_KEY = "your-openai-api-key-here"
 # Get your key at: https://platform.openai.com
 
-# Photoroom — product fitting with shadows and relighting
-# PHOTOROOM_API_KEY = "your-photoroom-api-key-here"
-# Get your key at: https://www.photoroom.com/api
+# ===========================================
+# REMOVED FROM PIPELINE
+# ===========================================
+
+# FAL_API_KEY — REMOVED
+# fal.ai no longer used in pipeline
+# Bria RMBG removed (Gemini handles product natively)
+# FLUX removed (Gemini is the only image provider)
+
+# PHOTOROOM_API_KEY — REMOVED
+# Photoroom no longer used in pipeline
+# Gemini handles product integration natively
+
+# FASHNAI_API_KEY — reserved for future
+# Model-wearing-product generation (not active)
