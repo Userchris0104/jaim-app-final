@@ -23,9 +23,16 @@ USE_MOCK_PLATFORMS = "false"  # Set to "true" for local development with mock Ti
 # ANTHROPIC_API_KEY = "your-key-here"
 # Get key at: console.anthropic.com
 
-# Image Generation (fal.ai)
+# Google Gemini — PRIMARY scene/ad image generation
+# GEMINI_API_KEY = "your-gemini-api-key-here"
+# Get your key at: https://aistudio.google.com/apikey
+# Model: gemini-3.1-flash-image-preview
+# Cost: $0.039/image (standard), $0.0195/image (batch)
+
+# fal.ai — background removal only (Bria RMBG)
 # FAL_API_KEY = "your-fal-api-key-here"
 # Get your key at: https://fal.ai/dashboard
+# Cost: $0.018/image for background removal
 
 # FashnAI — virtual try-on for fashion products (NOT used in ad generation pipeline)
 # FASHNAI_API_KEY = "your-fashnai-api-key-here"

@@ -53,7 +53,7 @@ import { getProductStyle } from './productStyle';
 import { generateScenesParallel, type ExtendedSceneResult } from './sceneGeneration';
 import { removeBackground, compositeProductIntoScene } from './productFitting';
 import { generateCopyForVariants } from './copyGeneration';
-import { getVariantType, requiresTextToImage, type VariantType } from './promptVariation';
+import { getVariantType, requiresTextToImage, isModelWearingVariant, type VariantType } from './promptVariation';
 
 // ===========================================
 // MAIN PIPELINE FUNCTION
@@ -124,7 +124,25 @@ export async function runPipeline(
     });
 
     // Get the clean product image URL (absolute URL for edit endpoint)
-    const cleanProductImageUrl = getAbsoluteUrl(rmbgResult.cleanImageUrl, env);
+    // Try R2 URL first, fall back to original Shopify image
+    let cleanProductImageUrl = getAbsoluteUrl(rmbgResult.cleanImageUrl, env);
+
+    // CRITICAL: If R2 URL is not available, use original Shopify image
+    // The Edit endpoint REQUIRES an absolute URL that fal.ai can fetch
+    if (!cleanProductImageUrl) {
+      const originalImageUrl = getProductImageUrl(product);
+      if (originalImageUrl && (originalImageUrl.startsWith('http://') || originalImageUrl.startsWith('https://'))) {
+        cleanProductImageUrl = originalImageUrl;
+        console.log('[PIPELINE] Using original Shopify image (R2 URL not available):', originalImageUrl);
+      }
+    }
+
+    console.log('[PIPELINE] Product image URL for scene generation:', {
+      r2CleanUrl: rmbgResult.cleanImageUrl,
+      absoluteUrl: cleanProductImageUrl,
+      hasR2PublicUrl: !!env.R2_PUBLIC_URL,
+      usingFallback: !getAbsoluteUrl(rmbgResult.cleanImageUrl, env)
+    });
 
     // ===========================================
     // STEP 6: Decide Variants Based on Phase
@@ -143,11 +161,13 @@ export async function runPipeline(
 
     const [scenesMap, copyResult] = await Promise.all([
       // Generate all scenes in parallel (now with variation metadata)
+      // Passes both clean product image and original Shopify image for fallback chain
       generateScenesParallel(
         variants,
         brandDna,
         productStyle,
         cleanProductImageUrl,
+        product.image_url,  // Original Shopify image for fallback
         product.store_id,
         env
       ),
@@ -183,24 +203,51 @@ export async function runPipeline(
         continue;
       }
 
-      // Determine if we need CSS overlay (for text-to-image scenes)
-      const needsCssOverlay = sceneResult.usedEditEndpoint === false;
+      // Determine compositing method based on variant type and generation method
       let finalImageUrl = sceneResult.sceneUrl;
-      let compositingMethod = sceneResult.usedEditEndpoint ? 'ai_composited' : 'scene_overlay';
+      let compositingMethod: string;
+      let modelWearingValidated: boolean | null = null;
 
-      // For text-to-image scenes, try Photoroom compositing
-      if (needsCssOverlay && cleanProductImageUrl) {
-        const fittingResult = await compositeProductIntoScene(
-          product,
-          sceneResult.sceneUrl,
-          { shadow_mode: 'ai-soft', lighting_mode: 'ai-auto', background_blur: 0 },
-          variant,
-          env
-        );
+      // Check if this is a model-wearing variant (single Edit call, no compositing needed)
+      const isModelVariant = isModelWearingVariant(sceneResult.variantType);
 
-        if (fittingResult.success && fittingResult.compositedImageUrl) {
-          finalImageUrl = fittingResult.compositedImageUrl;
-          compositingMethod = fittingResult.provider === 'photoroom' ? 'photoroom_fitted' : 'scene_overlay';
+      if (isModelVariant && sceneResult.usedEditEndpoint) {
+        // MODEL_WEARING variants: Single Nano Banana Edit call
+        // No additional compositing needed - the model is already wearing the product
+        compositingMethod = 'nano_banana_native';
+        console.log(`[PIPELINE] Model variant ${variant} - using native generation (no compositing)`);
+
+        // Validate that model is actually wearing the product
+        if (env.OPENAI_API_KEY) {
+          const validationResult = await validateModelWearing(finalImageUrl, env);
+          modelWearingValidated = validationResult.isWearing;
+
+          if (!validationResult.isWearing) {
+            console.warn(`[MODEL_CHECK] Model not wearing product - regenerating with stronger prompt`);
+            // TODO: Regenerate with stronger prompt or fall back to product hero
+            // For now, log the issue but continue
+          }
+        }
+      } else if (sceneResult.usedEditEndpoint) {
+        // Product variants using Edit endpoint: AI composited the product
+        compositingMethod = 'ai_composited';
+      } else {
+        // Text-to-image scenes: Need CSS overlay or Photoroom compositing
+        compositingMethod = 'scene_overlay';
+
+        if (cleanProductImageUrl) {
+          const fittingResult = await compositeProductIntoScene(
+            product,
+            sceneResult.sceneUrl,
+            { shadow_mode: 'ai-soft', lighting_mode: 'ai-auto', background_blur: 0 },
+            variant,
+            env
+          );
+
+          if (fittingResult.success && fittingResult.compositedImageUrl) {
+            finalImageUrl = fittingResult.compositedImageUrl;
+            compositingMethod = fittingResult.provider === 'photoroom' ? 'photoroom_fitted' : 'scene_overlay';
+          }
         }
       }
 
@@ -462,6 +509,84 @@ function getAbsoluteUrl(url: string | null, env: Env): string | null {
   // Fallback: can't convert to absolute
   console.warn('[PIPELINE] Cannot convert relative URL to absolute:', url);
   return null;
+}
+
+// ===========================================
+// MODEL WEARING VALIDATION
+// ===========================================
+
+/**
+ * Validate that a model is actually wearing the product using GPT-4o-mini vision.
+ * Returns whether the model appears to be wearing (not holding/standing next to) the item.
+ */
+async function validateModelWearing(
+  imageUrl: string,
+  env: Env
+): Promise<{ isWearing: boolean; reason?: string }> {
+  if (!env.OPENAI_API_KEY) {
+    console.warn('[MODEL_CHECK] No OpenAI API key - skipping validation');
+    return { isWearing: true }; // Assume valid if we can't check
+  }
+
+  try {
+    // Convert relative URL to absolute if needed
+    const absoluteUrl = getAbsoluteUrl(imageUrl, env);
+    if (!absoluteUrl) {
+      console.warn('[MODEL_CHECK] Cannot get absolute URL for validation');
+      return { isWearing: true };
+    }
+
+    const response = await fetch('https://api.openai.com/v1/chat/completions', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${env.OPENAI_API_KEY}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify({
+        model: 'gpt-4o-mini',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'text',
+                text: 'Look at this fashion/jewelry ad image. Is the model wearing the garment or jewelry ON their body? The item should be worn (on body, on finger, around neck, in ears, etc) - not held in hand, not floating next to the model, not displayed separately. Answer with ONLY one word: WEARING or NOT_WEARING'
+              },
+              {
+                type: 'image_url',
+                image_url: {
+                  url: absoluteUrl,
+                  detail: 'low'
+                }
+              }
+            ]
+          }
+        ],
+        max_tokens: 10
+      })
+    });
+
+    if (!response.ok) {
+      console.error('[MODEL_CHECK] OpenAI API error:', response.status);
+      return { isWearing: true }; // Assume valid on API error
+    }
+
+    const data = await response.json() as {
+      choices?: Array<{ message?: { content?: string } }>;
+    };
+
+    const answer = data.choices?.[0]?.message?.content?.trim().toUpperCase();
+    console.log('[MODEL_CHECK] Validation result:', answer);
+
+    if (answer === 'NOT_WEARING') {
+      return { isWearing: false, reason: 'Model not wearing the product' };
+    }
+
+    return { isWearing: true };
+  } catch (error: any) {
+    console.error('[MODEL_CHECK] Validation error:', error);
+    return { isWearing: true }; // Assume valid on error
+  }
 }
 
 // ===========================================

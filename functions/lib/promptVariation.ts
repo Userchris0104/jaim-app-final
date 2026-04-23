@@ -650,10 +650,10 @@ export function generatePromptHash(
 // ===========================================
 
 export const BASE_PROMPTS: Record<VariantType, string> = {
-  // JEWELRY
+  // JEWELRY - MODEL_WEARING_JEWELRY uses Edit endpoint with product image
   PRODUCT_LUXURY_SURFACE: `Luxury jewelry product photography. The piece resting naturally on a surface. Soft warm light with authentic shadows. The jewelry is sharp and the absolute hero. High-end commercial jewelry photography.`,
 
-  MODEL_WEARING_JEWELRY: `Luxury jewelry editorial. An elegant hand or model wearing this exact piece. Dark moody studio background. Dramatic soft light on the jewelry. Magazine editorial quality.`,
+  MODEL_WEARING_JEWELRY: `Luxury jewelry editorial photography. A female model wearing the jewelry piece shown in the first image. The jewelry from the first image is ON the model — she is wearing it on her body, not holding it, not standing next to it, not floating. For rings or bracelets: the jewelry from the first image is on her finger or wrist. For earrings: the earrings from the first image are in her ears. For necklaces: the necklace from the first image is around her neck. Preserve the exact design, metal color, and gemstone details from the first image faithfully. Dark moody studio background. Dramatic soft light on the jewelry. Shot from shoulders up. Magazine editorial quality.`,
 
   EDITORIAL_CLOSE_UP: `Intimate jewelry macro photography. The piece on soft fabric. Generous negative space for text. Warm diffused light, no harsh shadows. Shallow depth of field, dreamy edges. The piece is perfectly sharp.`,
 
@@ -671,10 +671,10 @@ export const BASE_PROMPTS: Record<VariantType, string> = {
 
   LIFESTYLE_HOME: `Warm lifestyle pet product photography. The product in a cozy home setting. Wooden floor, afternoon sunlight. A feeling that a beloved pet lives here. Product is the focal point.`,
 
-  // FASHION
-  MODEL_WEARING: `Fashion editorial photography. A stylish model wearing this exact garment. Pattern color and details preserved faithfully. Clean neutral studio or lifestyle setting. Natural confident pose. Commercial fashion photography quality.`,
+  // FASHION - MODEL_WEARING uses Edit endpoint with product image
+  MODEL_WEARING: `Fashion editorial photography. A stylish model wearing the garment shown in the first image. The model is WEARING the garment from the first image ON their body — not holding it, not standing next to it, not floating beside them. The garment from the first image must be on the model's body. Preserve the garment's exact color, pattern, fabric texture, and design details from the first image faithfully. Clean minimal studio background with soft diffused lighting. Natural confident pose, looking at camera. Shot from mid-torso up showing the garment clearly. Commercial fashion photography quality.`,
 
-  PRODUCT_CLEAN_HERO: `Minimalist fashion product photography. The garment on a neutral or white background. Soft studio lighting. All fabric details and construction visible. Clean simple product-focused composition.`,
+  PRODUCT_CLEAN_HERO: `Minimalist fashion product photography. The garment from the first image displayed naturally in the scene. The garment from the first image is the hero of the composition. It should look naturally placed, not pasted on top. Preserve the exact color, pattern, and fabric details from the first image. Soft studio lighting on a neutral or white background. All fabric details and construction visible. Clean simple product-focused composition.`,
 
   LIFESTYLE_EDITORIAL: `Lifestyle fashion photography. The garment in a natural urban or outdoor editorial environment. Warm natural light. The garment is the clear focal point. Creative editorial, full of personality.`,
 
@@ -776,15 +776,34 @@ export function getVariantType(
 /**
  * Check if variant type requires lifestyle/model (text-to-image)
  * vs product edit (edit endpoint).
+ *
+ * IMPORTANT: MODEL_WEARING and MODEL_WEARING_JEWELRY now use EDIT endpoint
+ * with product image so the model is actually wearing the product.
+ * Only pure lifestyle scenes (no product integration) use text-to-image.
  */
 export function requiresTextToImage(variantType: VariantType): boolean {
+  // Only lifestyle scenes where product will be CSS overlaid use text-to-image
+  // MODEL_WEARING variants now use Edit endpoint for proper product integration
   const textToImageTypes: VariantType[] = [
-    'LIFESTYLE_RITUAL',      // BEAUTY C - model scene
-    'LIFESTYLE_CONSUMPTION', // FOOD C - model scene
-    'LIFESTYLE_WITH_PERSON', // HOME C - model scene
-    'MODEL_WEARING',         // FASHION A - model wearing
-    'MODEL_WEARING_JEWELRY'  // JEWELRY B - model wearing
+    'LIFESTYLE_RITUAL',       // BEAUTY C - lifestyle scene, product CSS overlay
+    'LIFESTYLE_CONSUMPTION',  // FOOD C - lifestyle scene, product CSS overlay
+    'LIFESTYLE_WITH_PERSON',  // HOME C - lifestyle scene, product CSS overlay
+    'LIFESTYLE_EDITORIAL'     // FASHION C - lifestyle scene, product CSS overlay
+    // MODEL_WEARING and MODEL_WEARING_JEWELRY removed - they use Edit endpoint
   ];
 
   return textToImageTypes.includes(variantType);
+}
+
+/**
+ * Check if variant type is a model-wearing variant.
+ * These use Edit endpoint and should NOT have additional compositing.
+ * The AI generates the model wearing the product in a single call.
+ */
+export function isModelWearingVariant(variantType: VariantType): boolean {
+  const modelWearingTypes: VariantType[] = [
+    'MODEL_WEARING',          // FASHION A - model wearing garment
+    'MODEL_WEARING_JEWELRY'   // JEWELRY B - model wearing jewelry
+  ];
+  return modelWearingTypes.includes(variantType);
 }

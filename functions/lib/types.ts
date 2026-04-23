@@ -302,7 +302,7 @@ export interface VariantConfig {
 export interface SceneGenerationResult {
   success: boolean;
   sceneUrl: string | null;
-  provider: 'nano-banana-2' | 'flux-fallback';
+  provider: 'gemini' | 'nano-banana-2' | 'flux-fallback';
   prompt: string;
   error?: string;
 }
@@ -361,9 +361,19 @@ export interface AdGenerationResult {
 }
 
 export type CompositingMethod =
-  | 'photoroom_fitted'
-  | 'scene_overlay'
-  | 'shopify_only';
+  | 'nano_banana_native'  // Model wearing product - single Edit call, no compositing
+  | 'ai_composited'       // Product composited by AI via Edit endpoint
+  | 'photoroom_fitted'    // Product fitted via Photoroom API
+  | 'scene_overlay'       // CSS overlay fallback
+  | 'shopify_only';       // Original Shopify image only
+
+// Image generation provider tracking
+export type ImageProvider =
+  | 'GEMINI_PRO'          // gemini-3.1-flash-image-preview standard ($0.067/image)
+  | 'GEMINI_BATCH'        // gemini-3.1-flash-image-preview batch ($0.034/image)
+  | 'BRIA_RMBG'           // fal.ai background removal only
+  | 'PRODUCT_ONLY'        // clean product image fallback
+  | 'SHOPIFY_ORIGINAL';   // last resort fallback
 
 // ===========================================
 // DATABASE RECORDS
