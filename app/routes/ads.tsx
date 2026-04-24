@@ -353,12 +353,11 @@ function AdCard({
     <div className="bg-white rounded-2xl border border-gray-100 overflow-hidden hover:shadow-lg hover:border-violet-200 transition-all group">
       {/* Image Area - 4:5 aspect ratio with compositing method support */}
       <div className="relative aspect-[4/5] bg-gray-100 overflow-hidden">
-        {/* CSS Overlay: When we have scene + product but Photoroom failed (composited === scene) */}
+        {/* CSS Overlay: ONLY when compositingMethod explicitly says overlay
+            For ai_composited and nano_banana_native, product is already in the image */}
         {ad.sceneImageUrl && ad.productImageUrl && (
           ad.compositingMethod === 'css_overlay' ||
-          ad.compositingMethod === 'scene_overlay' ||
-          (ad.compositedImageUrl === ad.sceneImageUrl) ||
-          (!ad.compositedImageUrl && ad.sceneImageUrl)
+          ad.compositingMethod === 'scene_overlay'
         ) ? (
           <>
             <img
@@ -563,12 +562,11 @@ function AdPreviewModal({
       >
         {/* Left: Ad Creative with CSS overlay compositing */}
         <div className="w-1/2 bg-gray-100 relative overflow-hidden">
-          {/* CSS Overlay: When we have scene + product but Photoroom failed */}
+          {/* CSS Overlay: ONLY when compositingMethod explicitly says overlay
+              For ai_composited and nano_banana_native, product is already in the image */}
           {ad.sceneImageUrl && ad.productImageUrl && (
             ad.compositingMethod === 'css_overlay' ||
-            ad.compositingMethod === 'scene_overlay' ||
-            (ad.compositedImageUrl === ad.sceneImageUrl) ||
-            (!ad.compositedImageUrl && ad.sceneImageUrl)
+            ad.compositingMethod === 'scene_overlay'
           ) ? (
             <>
               {/* Scene background */}
