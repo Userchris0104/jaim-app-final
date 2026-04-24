@@ -47,8 +47,16 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
   const { env, request } = context;
 
   try {
-    const body = await request.json() as GenerateAdRequest;
-    const { productId, forceRegenerate } = body;
+    const body = await request.json() as GenerateAdRequest & {
+      // Extended template options
+      headline?: string;
+      subheadline?: string;
+      promoHeadline?: string;
+      offerText?: string;
+      dropLabel?: string;
+      scarcityText?: string;
+    };
+    const { productId, forceRegenerate, templateId } = body;
 
     if (!productId) {
       return Response.json({ error: 'Product ID required' }, { status: 400 });
@@ -73,11 +81,23 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     console.log('[API] Starting ad generation for:', {
       productId: product.id,
       title: product.title,
-      storeId: store.id
+      storeId: store.id,
+      templateId: templateId || 'category-based'
     });
 
+    // Build pipeline options if template provided
+    const pipelineOptions = templateId ? {
+      templateId: templateId as any,
+      headline: body.headline,
+      subheadline: body.subheadline,
+      promoHeadline: body.promoHeadline,
+      offerText: body.offerText,
+      dropLabel: body.dropLabel,
+      scarcityText: body.scarcityText
+    } : undefined;
+
     // Run the modular compositing pipeline
-    const result = await runPipeline(product, env);
+    const result = await runPipeline(product, env, pipelineOptions);
 
     if (!result.success) {
       return Response.json(

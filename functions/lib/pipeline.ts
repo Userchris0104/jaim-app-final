@@ -51,9 +51,10 @@ import {
 
 import { getBrandDNA } from './brandDna';
 import { getProductStyle } from './productStyle';
-import { generateScenesParallel, type ExtendedSceneResult } from './sceneGeneration';
+import { generateScenesParallel, generateSceneWithTemplate, type ExtendedSceneResult, type TemplateGenerationInput } from './sceneGeneration';
 import { generateCopyForVariants } from './copyGeneration';
 import { getVariantType, requiresTextToImage, isModelWearingVariant, type VariantType } from './promptVariation';
+import { getTemplateById, type TemplateId } from './fashionTemplates';
 
 // clean_image_url deprecated — Bria RMBG removed from pipeline
 // Using original Shopify image directly with Gemini
@@ -63,12 +64,29 @@ import { getVariantType, requiresTextToImage, isModelWearingVariant, type Varian
 // ===========================================
 
 /**
+ * Pipeline options for ad generation.
+ */
+export interface PipelineOptions {
+  templateId?: TemplateId;        // Use specific fashion template
+  headline?: string;              // Pre-generated headline for template
+  subheadline?: string;           // Pre-generated subheadline
+  promoHeadline?: string;         // Promo/sale headline
+  offerText?: string;             // Offer text (e.g., "20% OFF")
+  dropLabel?: string;             // Drop label (e.g., "NEW ARRIVAL")
+  scarcityText?: string;          // Scarcity text (e.g., "Limited to 100")
+}
+
+/**
  * Execute the full ad generation pipeline.
  * This is the main entry point for generating ads.
+ *
+ * When templateId is provided, uses the new template-based system.
+ * When not provided, falls back to legacy category-based generation.
  */
 export async function runPipeline(
   product: ProductRecord,
-  env: Env
+  env: Env,
+  options?: PipelineOptions
 ): Promise<GenerateAdResponse> {
   const startTime = Date.now();
   console.log('[PIPELINE] Starting ad generation for product:', product.id);
@@ -136,7 +154,24 @@ export async function runPipeline(
     const abGroup = `${product.id}_${Date.now()}`;
 
     // ===========================================
-    // STEP 7: Generate Scenes AND Copy IN PARALLEL
+    // STEP 7: Check for Template-Based Generation
+    // ===========================================
+    if (options?.templateId) {
+      console.log('[PIPELINE] Using template-based generation:', options.templateId);
+      return await runTemplateBasedPipeline(
+        product,
+        brandDna,
+        productStyle,
+        productImageUrl,
+        abGroup,
+        phaseResult,
+        options,
+        env
+      );
+    }
+
+    // ===========================================
+    // STEP 8: Legacy Category-Based Generation
     // ===========================================
     console.log('[PIPELINE] Starting parallel generation (scenes + copy)...');
 
@@ -324,6 +359,179 @@ export async function runPipeline(
 }
 
 // ===========================================
+// TEMPLATE-BASED PIPELINE
+// ===========================================
+
+/**
+ * Run the template-based ad generation pipeline.
+ * Uses fashion templates with field injection instead of category prompts.
+ */
+async function runTemplateBasedPipeline(
+  product: ProductRecord,
+  brandDna: BrandDNA,
+  productStyle: ProductStyleProfile,
+  productImageUrl: string | null,
+  abGroup: string,
+  phaseResult: PhaseDetectionResult,
+  options: PipelineOptions,
+  env: Env
+): Promise<GenerateAdResponse> {
+  const startTime = Date.now();
+  const templateId = options.templateId!;
+
+  // Get the template to include metadata in response
+  const template = getTemplateById(templateId);
+  if (!template) {
+    return {
+      success: false,
+      message: `Template not found: ${templateId}`,
+      abGroup,
+      phase: phaseResult.phase,
+      variants: [],
+      error: `Template ${templateId} not found`
+    };
+  }
+
+  console.log('[PIPELINE] Template-based generation:', {
+    templateId,
+    templateName: template.name,
+    hasModel: template.hasModel
+  });
+
+  // Load store for brand colors
+  const store = await env.DB.prepare(
+    'SELECT store_name, primary_color, accent_color FROM stores WHERE id = ?'
+  ).bind(product.store_id).first<{
+    store_name: string | null;
+    primary_color: string | null;
+    accent_color: string | null;
+  }>();
+
+  // Generate copy first (needed for headline injection)
+  const copyResult = await generateCopyForVariants(
+    product,
+    brandDna,
+    productStyle,
+    ['A'], // Single variant for template
+    env
+  );
+
+  const variantCopy = copyResult.variants[0];
+  const headline = options.headline || variantCopy?.headline || product.title;
+  const subheadline = options.subheadline || variantCopy?.description || '';
+
+  // Build template generation input
+  const templateInput: TemplateGenerationInput = {
+    templateId,
+    product,
+    brandDna,
+    productStyle,
+    productImageUrl: productImageUrl || '',
+    storeId: product.store_id,
+    env,
+    // Copy fields
+    headline,
+    subheadline,
+    // Campaign/promo fields
+    promoHeadline: options.promoHeadline,
+    offerText: options.offerText,
+    dropLabel: options.dropLabel,
+    scarcityText: options.scarcityText,
+    // Store data
+    storeName: store?.store_name || brandDna.brand_name,
+    primaryColor: store?.primary_color || brandDna.identity.primary_palette[0],
+    accentColor: store?.accent_color || brandDna.identity.accent_palette[0]
+  };
+
+  // Generate scene with template
+  const sceneResult = await generateSceneWithTemplate(templateInput);
+
+  if (!sceneResult.success) {
+    return {
+      success: false,
+      message: 'Template-based generation failed',
+      abGroup,
+      phase: phaseResult.phase,
+      variants: [],
+      error: sceneResult.error || 'Scene generation failed'
+    };
+  }
+
+  // Build result
+  const adId = crypto.randomUUID();
+
+  // Determine compositing method (templates always use ai_composited)
+  const compositingMethod = 'ai_composited';
+
+  // Save to database
+  await env.DB.prepare(`
+    INSERT INTO generated_ads (
+      id, store_id, product_id, status,
+      headline, primary_text, description, call_to_action,
+      image_url, scene_image_url, product_image_url, composited_image_url,
+      compositing_method, platform, format,
+      ab_variant, ab_group,
+      ai_rationale, is_challenger, generation_phase, confidence_level, brand_dna_version,
+      template_id,
+      created_at, updated_at
+    )
+    VALUES (?, ?, ?, 'ready', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+  `).bind(
+    adId,
+    product.store_id,
+    product.id,
+    headline,
+    variantCopy?.primaryText || '',
+    variantCopy?.description || '',
+    variantCopy?.cta || 'Shop Now',
+    sceneResult.sceneUrl,
+    sceneResult.sceneUrl,
+    productImageUrl,
+    sceneResult.sceneUrl,
+    compositingMethod,
+    'meta_feed',
+    'square',
+    'A',
+    abGroup,
+    `Generated using ${template.name} template. ${template.description}`,
+    0, // not challenger
+    phaseResult.phase,
+    phaseResult.confidence,
+    brandDna.version,
+    templateId
+  ).run();
+
+  const duration = Date.now() - startTime;
+  console.log(`[PIPELINE] Template generation complete in ${duration}ms`);
+
+  return {
+    success: true,
+    message: `Ad created using ${template.name} template`,
+    abGroup,
+    phase: phaseResult.phase,
+    variants: [{
+      id: adId,
+      variant: 'A',
+      productId: product.id,
+      headline,
+      primaryText: variantCopy?.primaryText || '',
+      description: variantCopy?.description || '',
+      callToAction: variantCopy?.cta || 'Shop Now',
+      imageUrl: sceneResult.sceneUrl,
+      sceneImageUrl: sceneResult.sceneUrl,
+      productImageUrl,
+      compositedImageUrl: sceneResult.sceneUrl,
+      compositingMethod,
+      aiRationale: `Generated using ${template.name} template. ${template.description}`,
+      isChallenger: false,
+      confidenceLevel: phaseResult.confidence,
+      templateId,
+      templateName: template.name
+    }]
+  };
+}
+
+// ===========================================
 // DATABASE OPERATIONS
 // ===========================================
 
@@ -338,6 +546,7 @@ async function saveAdsToDB(
     _seed?: number;
     _promptHash?: string;
     _isStyleRotation?: boolean;
+    _templateId?: TemplateId;
   })[],
   abGroup: string,
   isStyleRotation: boolean,

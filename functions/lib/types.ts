@@ -391,6 +391,10 @@ export interface StoreRecord {
   generation_phase: string | null;
   performance_insights: string | null;
   insights_updated_at: string | null;
+  // Brand colors for template system
+  primary_color: string | null;
+  accent_color: string | null;
+  brand_colors_updated_at: string | null;
 }
 
 export interface ProductRecord {
@@ -434,6 +438,7 @@ export interface GeneratedAdRecord {
   generation_phase: string | null;
   confidence_level: string | null;
   brand_dna_version: number | null;
+  template_id: string | null;  // Fashion template ID (e.g., 'T01_EDITORIAL_HERO')
   created_at: string;
   updated_at: string;
 }
@@ -446,6 +451,7 @@ export interface GenerateAdRequest {
   productId: string;
   forceRegenerate?: boolean;
   variantOverride?: AdVariant;  // For testing specific variants
+  templateId?: string;          // Fashion template ID (e.g., 'T01_EDITORIAL_HERO')
 }
 
 export interface GenerateAdResponse {
@@ -469,7 +475,10 @@ export interface GenerateAdResponse {
     aiRationale: string;
     isChallenger: boolean;
     confidenceLevel: string;
-    // New fields for creative evolution
+    // Template system fields
+    templateId?: string;
+    templateName?: string;
+    // Legacy creative evolution fields
     variantType?: string;
     atmosphereUsed?: string;
     surfaceUsed?: string;

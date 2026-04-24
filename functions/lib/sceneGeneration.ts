@@ -10,15 +10,15 @@
  *
  * COST: $0.067/image (standard), $0.034/image (batch)
  *
- * Two modes based on variant type:
+ * TWO GENERATION MODES:
  *
- * 1. WITH PRODUCT IMAGE (Edit-style):
- *    For product-focused variants and model-wearing variants.
- *    Sends product image inline for AI to integrate into scene.
+ * 1. TEMPLATE-BASED (new):
+ *    When templateId is provided, uses fashion templates with field injection.
+ *    Product image always sent as Image 1 for Gemini to integrate.
  *
- * 2. TEXT-TO-IMAGE:
- *    For pure lifestyle scenes where product will be CSS overlaid.
- *    Generates scene with empty center zone for product placement.
+ * 2. CATEGORY-BASED (legacy):
+ *    When no templateId, uses category/variant type prompt building.
+ *    Maintained for backward compatibility.
  *
  * FALLBACK CHAIN (no fal.ai):
  * 1. Gemini → 2. Clean product image → 3. Original Shopify image
@@ -35,7 +35,8 @@ import type {
   ProductStyleProfile,
   AdVariant,
   StoreCategory,
-  ImageProvider
+  ImageProvider,
+  ProductRecord
 } from './types';
 
 import {
@@ -49,6 +50,20 @@ import {
   type VariantType,
   type VariationSelection
 } from './promptVariation';
+
+import {
+  getTemplateById,
+  injectTemplateFields,
+  getCurrentSeason,
+  getSeasonLabel,
+  formatPrice,
+  detectGender,
+  extractMaterialClaim,
+  extractProcessClaim,
+  extractOriginClaim,
+  type FashionTemplate,
+  type TemplateId
+} from './fashionTemplates';
 
 // ===========================================
 // CONSTANTS
@@ -67,6 +82,33 @@ const COST_PER_IMAGE_BATCH = 0.034;
 const CENTER_ZONE_INSTRUCTION = `Leave a clearly empty rectangular space in the center of the frame approximately 60% of the composition. Do not generate any product, object, or physical item in that center zone. Generate only the background environment.`;
 
 // ===========================================
+// TEMPLATE GENERATION INPUT
+// ===========================================
+
+export interface TemplateGenerationInput {
+  templateId: TemplateId;
+  product: ProductRecord;
+  brandDna: BrandDNA;
+  productStyle: ProductStyleProfile | null;
+  productImageUrl: string;
+  storeId: string;
+  env: Env;
+  // Copy fields (from Claude generation)
+  headline?: string;
+  subheadline?: string;
+  // Campaign/promo fields (optional)
+  promoHeadline?: string;
+  offerText?: string;
+  dropLabel?: string;
+  scarcityText?: string;
+  // Store data
+  storeName?: string;
+  primaryColor?: string;
+  accentColor?: string;
+  reviewSummary?: string;
+}
+
+// ===========================================
 // EXTENDED RESULT TYPE
 // ===========================================
 
@@ -78,6 +120,256 @@ export interface ExtendedSceneResult extends SceneGenerationResult {
   usedEditEndpoint: boolean;
   costUsd?: number;
   imageProvider: ImageProvider;
+  // Template-specific fields
+  templateId?: TemplateId;
+}
+
+// ===========================================
+// TEMPLATE-BASED GENERATION
+// ===========================================
+
+/**
+ * Generate scene using a fashion template.
+ * This is the new template-based approach that replaces category prompts.
+ *
+ * Always uses Edit endpoint with product image as Image 1.
+ * All templates instruct Gemini to integrate the product into the scene.
+ */
+export async function generateSceneWithTemplate(
+  input: TemplateGenerationInput
+): Promise<ExtendedSceneResult> {
+  const {
+    templateId,
+    product,
+    brandDna,
+    productStyle,
+    productImageUrl,
+    storeId,
+    env,
+    headline,
+    subheadline,
+    promoHeadline,
+    offerText,
+    dropLabel,
+    scarcityText,
+    storeName,
+    primaryColor,
+    accentColor,
+    reviewSummary
+  } = input;
+
+  // Get the template
+  const template = getTemplateById(templateId);
+  if (!template) {
+    console.error('[TEMPLATE_GEN] Template not found:', templateId);
+    return createFallbackResult(productImageUrl, templateId);
+  }
+
+  // Generate unique seed
+  const seed = generateUniqueSeed();
+
+  // Build all field values
+  const fields: Record<string, string> = {
+    // Brand identity
+    BRAND_NAME: storeName || brandDna.brand_name || 'Brand',
+    BRAND_COLOR_1: primaryColor || brandDna.identity.primary_palette[0] || '#FFFFFF',
+    BRAND_COLOR_2: accentColor || brandDna.identity.accent_palette[0] || '#000000',
+    BRAND_VIBE: brandDna.identity.core_vibe || 'premium',
+
+    // Product info
+    GENDER: detectGender(product),
+    PRODUCT_NAME: product.title || 'Product',
+    PRICE: formatPrice(product.price_min),
+
+    // Copy (from Claude generation)
+    HEADLINE: headline || '',
+    SUBHEADLINE: subheadline || '',
+
+    // Season
+    SEASON: getCurrentSeason(),
+    SEASON_LABEL: getSeasonLabel(),
+
+    // Promo/campaign
+    PROMO_HEADLINE: promoHeadline || '',
+    OFFER_TEXT: offerText || '',
+    DROP_LABEL: dropLabel || 'New Arrival',
+    DATE_OR_SCARCITY: scarcityText || '',
+
+    // Social proof
+    PROOF_TEXT: reviewSummary || '★★★★★ Customer Favorite',
+
+    // Sustainability claims (extracted from product data)
+    MATERIAL_CLAIM: extractMaterialClaim(product),
+    PROCESS_CLAIM: extractProcessClaim(product),
+    ORIGIN_CLAIM: extractOriginClaim(product)
+  };
+
+  // Inject fields into template
+  const prompt = injectTemplateFields(template.promptTemplate, fields);
+
+  // Generate prompt hash for tracking
+  const promptHash = generatePromptHashFromFields(templateId, fields, brandDna.version);
+
+  console.log('[TEMPLATE_GEN]', {
+    model: 'gemini-3.1-flash-image-preview',
+    templateId,
+    templateName: template.name,
+    hasModel: template.hasModel,
+    seed,
+    fieldsUsed: Object.keys(fields).length
+  });
+
+  // Always use Edit endpoint for templates (product image as Image 1)
+  const result = await generateWithGeminiEdit(
+    prompt,
+    productImageUrl,
+    seed,
+    env
+  );
+
+  // Retry on failure
+  if (!result.success) {
+    console.warn('[TEMPLATE_GEN] First attempt failed, retrying...');
+    const retrySeed = generateUniqueSeed();
+    const retryResult = await generateWithGeminiEdit(prompt, productImageUrl, retrySeed, env);
+
+    if (retryResult.success && (retryResult.sceneUrl || retryResult.base64Data)) {
+      return await processSuccessfulResult(
+        retryResult,
+        template,
+        templateId,
+        prompt,
+        retrySeed,
+        promptHash,
+        storeId,
+        env
+      );
+    }
+  }
+
+  // SUCCESS: Process and return
+  if (result.success && (result.sceneUrl || result.base64Data)) {
+    return await processSuccessfulResult(
+      result,
+      template,
+      templateId,
+      prompt,
+      seed,
+      promptHash,
+      storeId,
+      env
+    );
+  }
+
+  // FALLBACK: Use original product image
+  console.log('[TEMPLATE_GEN] Gemini failed — using product image as fallback');
+  return {
+    success: true,
+    sceneUrl: productImageUrl,
+    provider: 'gemini',
+    prompt,
+    variantType: 'PRODUCT_CLEAN_HERO' as VariantType, // Default for templates
+    variation: { surface: '', prop: '', lighting: '', composition: '', atmosphere: '' },
+    seed,
+    promptHash,
+    usedEditEndpoint: true,
+    costUsd: 0,
+    imageProvider: 'PRODUCT_ONLY',
+    templateId
+  };
+}
+
+/**
+ * Process a successful Gemini result and save to R2.
+ */
+async function processSuccessfulResult(
+  result: { success: boolean; sceneUrl: string | null; base64Data?: string; mimeType?: string },
+  template: FashionTemplate,
+  templateId: TemplateId,
+  prompt: string,
+  seed: number,
+  promptHash: string,
+  storeId: string,
+  env: Env
+): Promise<ExtendedSceneResult> {
+  let r2Url: string;
+
+  if (result.base64Data && result.mimeType) {
+    r2Url = await saveBase64ToR2(result.base64Data, result.mimeType, storeId, templateId, env);
+  } else if (result.sceneUrl) {
+    r2Url = await saveSceneToR2(result.sceneUrl, storeId, templateId as AdVariant, env);
+  } else {
+    r2Url = result.sceneUrl || '';
+  }
+
+  const costUsd = COST_PER_IMAGE_STANDARD;
+  console.log('[TEMPLATE_GEN] Success', {
+    model: 'gemini-3.1-flash-image-preview',
+    templateId,
+    cost: costUsd
+  });
+
+  return {
+    success: true,
+    sceneUrl: r2Url,
+    provider: 'gemini',
+    prompt,
+    variantType: 'PRODUCT_CLEAN_HERO' as VariantType, // Templates don't use variant types
+    variation: { surface: '', prop: '', lighting: '', composition: '', atmosphere: '' },
+    seed,
+    promptHash,
+    usedEditEndpoint: true,
+    costUsd,
+    imageProvider: 'GEMINI_PRO',
+    templateId
+  };
+}
+
+/**
+ * Create a fallback result when template not found.
+ */
+function createFallbackResult(
+  productImageUrl: string,
+  templateId: string
+): ExtendedSceneResult {
+  return {
+    success: true,
+    sceneUrl: productImageUrl,
+    provider: 'gemini',
+    prompt: '',
+    variantType: 'PRODUCT_CLEAN_HERO' as VariantType,
+    variation: { surface: '', prop: '', lighting: '', composition: '', atmosphere: '' },
+    seed: 0,
+    promptHash: '',
+    usedEditEndpoint: false,
+    costUsd: 0,
+    imageProvider: 'SHOPIFY_ORIGINAL',
+    templateId: templateId as TemplateId
+  };
+}
+
+/**
+ * Generate prompt hash from template fields.
+ */
+function generatePromptHashFromFields(
+  templateId: string,
+  fields: Record<string, string>,
+  brandDnaVersion: number
+): string {
+  const components = [
+    templateId,
+    fields.BRAND_COLOR_1?.slice(0, 7) || '',
+    fields.HEADLINE?.slice(0, 20) || '',
+    brandDnaVersion.toString()
+  ].join('|');
+
+  let hash = 0;
+  for (let i = 0; i < components.length; i++) {
+    const char = components.charCodeAt(i);
+    hash = ((hash << 5) - hash) + char;
+    hash = hash & hash;
+  }
+  return Math.abs(hash).toString(16);
 }
 
 // ===========================================
@@ -561,14 +853,14 @@ async function saveBase64ToR2(
   base64Data: string,
   mimeType: string,
   storeId: string,
-  variant: AdVariant,
+  identifier: AdVariant | string,  // Can be variant (A/B/C) or templateId
   env: Env
 ): Promise<string> {
   try {
     const buffer = base64ToArrayBuffer(base64Data);
     const timestamp = Date.now();
     const extension = mimeType.includes('png') ? 'png' : 'jpg';
-    const key = `scenes/${storeId}/${timestamp}-variant-${variant}.${extension}`;
+    const key = `scenes/${storeId}/${timestamp}-${identifier}.${extension}`;
 
     await env.R2.put(key, buffer, {
       httpMetadata: {
@@ -592,7 +884,7 @@ async function saveBase64ToR2(
 async function saveSceneToR2(
   imageUrl: string,
   storeId: string,
-  variant: AdVariant,
+  identifier: AdVariant | string,  // Can be variant (A/B/C) or templateId
   env: Env
 ): Promise<string> {
   try {
@@ -604,7 +896,7 @@ async function saveSceneToR2(
 
     const buffer = await response.arrayBuffer();
     const timestamp = Date.now();
-    const key = `scenes/${storeId}/${timestamp}-variant-${variant}.jpg`;
+    const key = `scenes/${storeId}/${timestamp}-${identifier}.jpg`;
 
     await env.R2.put(key, buffer, {
       httpMetadata: {
