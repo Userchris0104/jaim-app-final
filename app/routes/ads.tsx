@@ -159,27 +159,27 @@ function TextOverlay({
   const shadowClass = isDark ? 'drop-shadow-[0_2px_4px_rgba(0,0,0,0.5)]' : 'drop-shadow-[0_1px_2px_rgba(255,255,255,0.8)]';
 
   return (
-    <div className="absolute inset-0 pointer-events-none flex flex-col justify-between p-4">
-      {/* Top: Brand name */}
-      <div className={`${textColor} ${shadowClass}`}>
-        <span
-          className="text-[10px] font-medium tracking-[0.15em] uppercase"
-          style={{ textShadow: isDark ? '0 1px 3px rgba(0,0,0,0.5)' : '0 1px 2px rgba(255,255,255,0.8)' }}
-        >
-          {overlay.brandName}
-        </span>
-      </div>
+    <div className="absolute inset-0 pointer-events-none flex flex-col justify-end p-4 z-10">
+      {/* Bottom: Headline + CTA - positioned above the status badge */}
+      <div className="space-y-2 mb-8">
+        {/* Brand name - small above headline */}
+        <div className={`${textColor} ${shadowClass}`}>
+          <span
+            className="text-[10px] font-medium tracking-[0.15em] uppercase"
+            style={{ textShadow: isDark ? '0 1px 3px rgba(0,0,0,0.5)' : '0 1px 2px rgba(255,255,255,0.8)' }}
+          >
+            {overlay.brandName}
+          </span>
+        </div>
 
-      {/* Bottom: Headline + CTA */}
-      <div className="space-y-2">
         {/* Headline */}
         <h3
-          className={`text-lg font-bold leading-tight ${textColor}`}
+          className={`text-base font-bold leading-tight ${textColor}`}
           style={{
             textShadow: isDark
               ? '0 2px 8px rgba(0,0,0,0.6), 0 1px 2px rgba(0,0,0,0.4)'
               : '0 1px 4px rgba(255,255,255,0.9)',
-            maxWidth: '85%'
+            maxWidth: '80%'
           }}
         >
           {overlay.headline}
@@ -187,7 +187,7 @@ function TextOverlay({
 
         {/* CTA Button */}
         <button
-          className="px-4 py-1.5 text-xs font-semibold uppercase tracking-wide rounded-full pointer-events-auto transition-transform hover:scale-105"
+          className="px-3 py-1 text-[10px] font-semibold uppercase tracking-wide rounded-full pointer-events-auto transition-transform hover:scale-105"
           style={{
             backgroundColor: overlay.accentColor || overlay.primaryColor,
             color: '#ffffff',
