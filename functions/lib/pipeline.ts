@@ -55,6 +55,7 @@ import { generateScenesParallel, generateSceneWithTemplate, type ExtendedSceneRe
 import { generateCopyForVariants } from './copyGeneration';
 import { getVariantType, requiresTextToImage, isModelWearingVariant, type VariantType } from './promptVariation';
 import { getTemplateById, type TemplateId } from './fashionTemplates';
+import { selectTemplatesForProduct, recordTemplateUsage, type SelectedTemplate } from './templateSelector';
 
 // clean_image_url deprecated — Bria RMBG removed from pipeline
 // Using original Shopify image directly with Gemini
@@ -529,6 +530,373 @@ async function runTemplateBasedPipeline(
       templateName: template.name
     }]
   };
+}
+
+// ===========================================
+// SMART TEMPLATE SELECTION PIPELINE
+// ===========================================
+
+/**
+ * Run the smart template selection pipeline.
+ * Automatically selects 3 templates based on performance data:
+ * - Phase 1 (no data): 3 random templates
+ * - Phase 2 (winner working): winner + second best + untested
+ * - Phase 3 (declining): second best + hybrid + untested
+ */
+export async function runSmartTemplatePipeline(
+  product: ProductRecord,
+  store: StoreRecord,
+  env: Env
+): Promise<GenerateAdResponse> {
+  const startTime = Date.now();
+  console.log('[PIPELINE] Starting smart template selection for product:', product.id);
+
+  try {
+    // Load Brand DNA
+    const brandDna = await getBrandDNA(product.store_id, env);
+    if (!brandDna) {
+      throw new Error('Failed to load or generate Brand DNA');
+    }
+
+    // Load Product Style
+    const productStyle = await getProductStyle(product, env);
+
+    // Get product image
+    const productImageUrl = getProductImageUrl(product);
+    if (!productImageUrl) {
+      throw new Error('No product image available');
+    }
+
+    // Select templates using smart 3-phase logic
+    const selectedTemplates = await selectTemplatesForProduct(
+      store,
+      product,
+      brandDna,
+      env
+    );
+
+    console.log('[PIPELINE] Selected templates:', selectedTemplates.map(t => t.templateId));
+
+    // Create A/B group ID
+    const abGroup = `${product.id}_${Date.now()}`;
+
+    // Generate copy once (used for all variants)
+    const copyResult = await generateCopyForVariants(
+      product,
+      brandDna,
+      productStyle,
+      ['A', 'B', 'C'],
+      env
+    );
+
+    // Generate all 3 variants in parallel
+    const variantLabels: AdVariant[] = ['A', 'B', 'C'];
+    const generationPromises = selectedTemplates.map(async (selected, index) => {
+      const variant = variantLabels[index];
+      const variantCopy = copyResult.variants.find(c => c.variant === variant);
+
+      // Build template input
+      const templateInput: TemplateGenerationInput = {
+        templateId: selected.templateId as TemplateId,
+        product,
+        brandDna,
+        productStyle,
+        productImageUrl,
+        storeId: product.store_id,
+        env,
+        headline: variantCopy?.headline || product.title,
+        subheadline: variantCopy?.description || '',
+        storeName: store.store_name || brandDna.brand_name,
+        primaryColor: store.primary_color || brandDna.identity.primary_palette[0],
+        accentColor: store.accent_color || brandDna.identity.accent_palette[0]
+      };
+
+      // For hybrid templates, use the custom prompt
+      let sceneResult;
+      if (selected.isHybrid) {
+        // Use hybrid prompt directly with Gemini
+        sceneResult = await generateSceneWithHybridPrompt(
+          selected.promptTemplate,
+          productImageUrl,
+          product.store_id,
+          env
+        );
+      } else {
+        // Use standard template generation
+        sceneResult = await generateSceneWithTemplate(templateInput);
+      }
+
+      // Record template usage
+      await recordTemplateUsage(product.store_id, selected.templateId, env);
+
+      return {
+        variant,
+        selected,
+        sceneResult,
+        copy: variantCopy
+      };
+    });
+
+    const results = await Promise.all(generationPromises);
+
+    // Build response variants
+    const variants: GenerateAdResponse['variants'] = [];
+
+    for (const result of results) {
+      if (!result.sceneResult.success) {
+        console.warn(`[PIPELINE] Template ${result.selected.templateId} failed`);
+        continue;
+      }
+
+      const adId = crypto.randomUUID();
+
+      // Save to database
+      await env.DB.prepare(`
+        INSERT INTO generated_ads (
+          id, store_id, product_id, status,
+          headline, primary_text, description, call_to_action,
+          image_url, scene_image_url, product_image_url, composited_image_url,
+          compositing_method, platform, format,
+          ab_variant, ab_group,
+          ai_rationale, is_challenger, generation_phase, confidence_level, brand_dna_version,
+          template_id,
+          created_at, updated_at
+        )
+        VALUES (?, ?, ?, 'ready', ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))
+      `).bind(
+        adId,
+        product.store_id,
+        product.id,
+        result.copy?.headline || product.title,
+        result.copy?.primaryText || '',
+        result.copy?.description || '',
+        result.copy?.cta || 'Shop Now',
+        result.sceneResult.sceneUrl,
+        result.sceneResult.sceneUrl,
+        productImageUrl,
+        result.sceneResult.sceneUrl,
+        'ai_composited',
+        'meta_feed',
+        'square',
+        result.variant,
+        abGroup,
+        result.selected.rationale,
+        result.selected.isUntested ? 1 : 0,
+        'LEARNING', // Phase determined by selector
+        'medium',
+        brandDna.version,
+        result.selected.templateId
+      ).run();
+
+      variants.push({
+        id: adId,
+        variant: result.variant,
+        productId: product.id,
+        headline: result.copy?.headline || product.title,
+        primaryText: result.copy?.primaryText || '',
+        description: result.copy?.description || '',
+        callToAction: result.copy?.cta || 'Shop Now',
+        imageUrl: result.sceneResult.sceneUrl,
+        sceneImageUrl: result.sceneResult.sceneUrl,
+        productImageUrl,
+        compositedImageUrl: result.sceneResult.sceneUrl,
+        compositingMethod: 'ai_composited',
+        aiRationale: result.selected.rationale,
+        isChallenger: result.selected.isUntested,
+        confidenceLevel: 'medium',
+        templateId: result.selected.templateId,
+        templateName: result.selected.templateName
+      });
+    }
+
+    const duration = Date.now() - startTime;
+    console.log(`[PIPELINE] Smart template generation complete: ${variants.length} variants in ${duration}ms`);
+
+    return {
+      success: true,
+      message: `${variants.length} ad variants created using smart template selection`,
+      abGroup,
+      phase: 'LEARNING',
+      variants
+    };
+
+  } catch (error: any) {
+    console.error('[PIPELINE] Smart template pipeline error:', error);
+    return {
+      success: false,
+      message: 'Smart template pipeline failed',
+      abGroup: '',
+      phase: 'LEARNING',
+      variants: [],
+      error: error.message || 'Unknown error'
+    };
+  }
+}
+
+/**
+ * Generate scene using a hybrid prompt (custom AI-generated prompt).
+ */
+async function generateSceneWithHybridPrompt(
+  promptText: string,
+  productImageUrl: string,
+  storeId: string,
+  env: Env
+): Promise<ExtendedSceneResult> {
+  // Use the same Gemini generation but with custom prompt
+  const seed = Math.floor(Math.random() * 1000000);
+
+  // Import the Gemini generation function
+  const result = await generateWithGeminiEditDirect(promptText, productImageUrl, seed, env);
+
+  if (result.success && result.base64Data && result.mimeType) {
+    // Save to R2
+    const r2Url = await saveHybridToR2(result.base64Data, result.mimeType, storeId, env);
+
+    return {
+      success: true,
+      sceneUrl: r2Url,
+      provider: 'gemini',
+      prompt: promptText,
+      variantType: 'PRODUCT_CLEAN_HERO' as VariantType,
+      variation: { surface: '', prop: '', lighting: '', composition: '', atmosphere: '' },
+      seed,
+      promptHash: '',
+      usedEditEndpoint: true,
+      costUsd: 0.067,
+      imageProvider: 'GEMINI_PRO'
+    };
+  }
+
+  // Fallback
+  return {
+    success: true,
+    sceneUrl: productImageUrl,
+    provider: 'gemini',
+    prompt: promptText,
+    variantType: 'PRODUCT_CLEAN_HERO' as VariantType,
+    variation: { surface: '', prop: '', lighting: '', composition: '', atmosphere: '' },
+    seed,
+    promptHash: '',
+    usedEditEndpoint: false,
+    costUsd: 0,
+    imageProvider: 'PRODUCT_ONLY'
+  };
+}
+
+/**
+ * Direct Gemini Edit call for hybrid prompts.
+ */
+async function generateWithGeminiEditDirect(
+  prompt: string,
+  productImageUrl: string,
+  seed: number,
+  env: Env
+): Promise<{ success: boolean; base64Data?: string; mimeType?: string; error?: string }> {
+  if (!env.GEMINI_API_KEY) {
+    return { success: false, error: 'No GEMINI API key' };
+  }
+
+  try {
+    // Fetch product image and convert to base64
+    const imageResponse = await fetch(productImageUrl);
+    if (!imageResponse.ok) {
+      return { success: false, error: 'Failed to fetch product image' };
+    }
+
+    const arrayBuffer = await imageResponse.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    let binary = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+      binary += String.fromCharCode(uint8Array[i]);
+    }
+    const base64 = btoa(binary);
+    const contentType = imageResponse.headers.get('content-type') || 'image/jpeg';
+    const mimeType = contentType.split(';')[0].trim();
+
+    const requestBody = {
+      contents: [
+        {
+          parts: [
+            {
+              inlineData: {
+                mimeType,
+                data: base64
+              }
+            },
+            {
+              text: prompt
+            }
+          ]
+        }
+      ],
+      generationConfig: {
+        responseModalities: ['IMAGE', 'TEXT'],
+        seed
+      }
+    };
+
+    const response = await fetch(
+      `https://generativelanguage.googleapis.com/v1beta/models/gemini-3.1-flash-image-preview:generateContent?key=${env.GEMINI_API_KEY}`,
+      {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(requestBody)
+      }
+    );
+
+    if (!response.ok) {
+      return { success: false, error: `API error: ${response.status}` };
+    }
+
+    const data = await response.json() as any;
+    const imageResult = data?.candidates?.[0]?.content?.parts?.find((p: any) => p.inlineData);
+
+    if (!imageResult) {
+      return { success: false, error: 'No image in response' };
+    }
+
+    return {
+      success: true,
+      base64Data: imageResult.inlineData.data,
+      mimeType: imageResult.inlineData.mimeType || 'image/png'
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message };
+  }
+}
+
+/**
+ * Save hybrid-generated image to R2.
+ */
+async function saveHybridToR2(
+  base64Data: string,
+  mimeType: string,
+  storeId: string,
+  env: Env
+): Promise<string> {
+  try {
+    const binary = atob(base64Data);
+    const bytes = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) {
+      bytes[i] = binary.charCodeAt(i);
+    }
+
+    const timestamp = Date.now();
+    const extension = mimeType.includes('png') ? 'png' : 'jpg';
+    const key = `scenes/${storeId}/${timestamp}-hybrid.${extension}`;
+
+    await env.R2.put(key, bytes.buffer, {
+      httpMetadata: {
+        contentType: mimeType,
+        cacheControl: 'public, max-age=31536000'
+      }
+    });
+
+    return `/api/ads/image?key=${encodeURIComponent(key)}`;
+  } catch (error) {
+    console.error('[PIPELINE] R2 save failed:', error);
+    return `data:${mimeType};base64,${base64Data}`;
+  }
 }
 
 // ===========================================

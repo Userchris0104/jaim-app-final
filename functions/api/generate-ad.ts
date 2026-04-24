@@ -36,8 +36,8 @@
  */
 
 import { getStoreFromCookieOrFallback } from '../lib/store-cookie';
-import { runPipeline } from '../lib/pipeline';
-import type { Env, ProductRecord, GenerateAdRequest } from '../lib/types';
+import { runPipeline, runSmartTemplatePipeline } from '../lib/pipeline';
+import type { Env, ProductRecord, GenerateAdRequest, StoreRecord } from '../lib/types';
 
 // ===========================================
 // POST HANDLER - GENERATE ADS
@@ -55,8 +55,10 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       offerText?: string;
       dropLabel?: string;
       scarcityText?: string;
+      // Smart selection mode
+      useSmartSelection?: boolean;
     };
-    const { productId, forceRegenerate, templateId } = body;
+    const { productId, forceRegenerate, templateId, useSmartSelection } = body;
 
     if (!productId) {
       return Response.json({ error: 'Product ID required' }, { status: 400 });
@@ -78,26 +80,40 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       return Response.json({ error: 'Product not found' }, { status: 404 });
     }
 
+    // Get full store record for smart selection
+    const storeRecord = await env.DB.prepare(
+      'SELECT * FROM stores WHERE id = ?'
+    ).bind(store.id).first<StoreRecord>();
+
     console.log('[API] Starting ad generation for:', {
       productId: product.id,
       title: product.title,
       storeId: store.id,
-      templateId: templateId || 'category-based'
+      mode: useSmartSelection ? 'smart-selection' : (templateId ? 'template' : 'category-based')
     });
 
-    // Build pipeline options if template provided
-    const pipelineOptions = templateId ? {
-      templateId: templateId as any,
-      headline: body.headline,
-      subheadline: body.subheadline,
-      promoHeadline: body.promoHeadline,
-      offerText: body.offerText,
-      dropLabel: body.dropLabel,
-      scarcityText: body.scarcityText
-    } : undefined;
+    let result;
 
-    // Run the modular compositing pipeline
-    const result = await runPipeline(product, env, pipelineOptions);
+    // Choose generation mode
+    if (useSmartSelection && storeRecord) {
+      // Smart template selection (3-phase logic)
+      result = await runSmartTemplatePipeline(product, storeRecord, env);
+    } else if (templateId) {
+      // Specific template requested
+      const pipelineOptions = {
+        templateId: templateId as any,
+        headline: body.headline,
+        subheadline: body.subheadline,
+        promoHeadline: body.promoHeadline,
+        offerText: body.offerText,
+        dropLabel: body.dropLabel,
+        scarcityText: body.scarcityText
+      };
+      result = await runPipeline(product, env, pipelineOptions);
+    } else {
+      // Legacy category-based generation
+      result = await runPipeline(product, env);
+    }
 
     if (!result.success) {
       return Response.json(
