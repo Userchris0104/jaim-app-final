@@ -1,18 +1,23 @@
 /**
  * Fashion Ad Templates - Template-Based Generation System
  *
- * 15 fashion ad templates with full prompt templates and dynamic field injection.
- * Replaces category-based prompt system with explicit template selection.
+ * 15 fashion ad templates with visual scene prompts only.
+ * Text overlays are handled separately by adCompositor.ts
  *
  * USAGE:
  * 1. getTemplateById('T01_EDITORIAL_HERO') → template object
  * 2. injectTemplateFields(template.promptTemplate, fields) → final prompt
  * 3. Send to Gemini with product image
+ * 4. Use adCompositor to add text overlays to the result
  *
- * BRANDING RULES (enforced in every template):
- * - No logo/text added to garment unless already on product
- * - Brand name appears as text overlay only
- * - Brand colors applied to text, buttons, overlays
+ * IMPORTANT - NO TEXT IN PROMPTS:
+ * Gemini cannot reliably render text in images.
+ * All text overlays (brand name, headline, CTA) are rendered
+ * via canvas compositing AFTER Gemini returns the image.
+ *
+ * PRODUCT INTEGRATION:
+ * Every prompt explicitly instructs Gemini to integrate Image 1
+ * (the product) INTO the scene, not alongside it.
  */
 
 // ===========================================
@@ -28,6 +33,16 @@ export interface FashionTemplate {
   hasTextOverlay: boolean;
   promptTemplate: string;
   dynamicFields: string[];
+  // Text overlay configuration (for adCompositor)
+  textConfig: TextOverlayConfig;
+}
+
+export interface TextOverlayConfig {
+  brandPosition: 'top-left' | 'top-right' | 'bottom-left';
+  headlinePosition: 'top' | 'center' | 'bottom';
+  headlineStyle: 'bold-sans' | 'elegant-serif' | 'condensed' | 'magazine';
+  ctaStyle: 'pill-button' | 'text-arrow' | 'minimal';
+  overlayTheme: 'light-on-dark' | 'dark-on-light' | 'auto';
 }
 
 export type TemplateId =
@@ -62,25 +77,34 @@ export const FASHION_TEMPLATES: FashionTemplate[] = [
     placement: ['feed_4x5'],
     hasModel: true,
     hasTextOverlay: true,
-    dynamicFields: ['BRAND_NAME', 'BRAND_COLOR_1', 'BRAND_COLOR_2', 'BRAND_VIBE', 'GENDER', 'HEADLINE'],
-    promptTemplate: `BRANDING RULES:
-Do not add any logo or text onto the garment unless Image 1 already shows a logo, graphic, or print on the fabric. If product has a print preserve it exactly. If plain keep plain. Brand name appears as small text overlay in corner of ad only — not on garment. Brand colors applied to text, buttons, overlays.
+    dynamicFields: ['BRAND_VIBE', 'GENDER'],
+    textConfig: {
+      brandPosition: 'top-left',
+      headlinePosition: 'bottom',
+      headlineStyle: 'bold-sans',
+      ctaStyle: 'text-arrow',
+      overlayTheme: 'light-on-dark'
+    },
+    promptTemplate: `You are creating a fashion advertisement photograph.
 
-Image 1 is the product from the merchant's Shopify store. Feature this exact product. Preserve the garment exactly as shown — same color, same fabric, same fit, same print or graphic if one exists on the product.
+IMAGE 1 is the exact product from the merchant's store. You MUST feature this exact garment.
 
-A [GENDER] model wearing this exact garment on their body. Shot from mid-torso up.
+CRITICAL PRODUCT RULES:
+- The model must be WEARING this exact garment on their body
+- Preserve the garment exactly: same color, same fabric, same fit
+- If the product has a print, logo, or graphic on the fabric, preserve it exactly
+- If the product is plain, keep it plain - do NOT add any logos or graphics
+- The garment must be clearly visible and recognizable
 
-Studio setting: single-tone warm backdrop in [BRAND_COLOR_1] or warm neutral tone. Soft directional lighting from upper left. Natural confident pose, looking directly at camera.
+SCENE REQUIREMENTS:
+- A [GENDER] model wearing this exact garment
+- Shot from mid-torso up, model looking directly at camera
+- Studio setting with single-tone warm backdrop (cream, beige, or warm gray)
+- Soft directional lighting from upper left
+- Natural confident pose
+- [BRAND_VIBE] aesthetic throughout
 
-Text in image:
-- Top left corner: '[BRAND_NAME]' in tiny elegant caps. Small and refined.
-- Bottom area: '[HEADLINE]' in large bold clean sans-serif. White or [BRAND_COLOR_2]. Maximum 6 words. Dominant element.
-- Below headline: 'Shop Now →' lighter weight same font.
-
-Text covers maximum 12% of image.
-[BRAND_VIBE] aesthetic throughout.
-Commercial fashion photography quality.
-4:5 vertical format.`
+OUTPUT: Professional fashion photography, 4:5 vertical format, no text or graphics overlay.`
   },
 
   // -------------------------------------------
@@ -93,25 +117,35 @@ Commercial fashion photography quality.
     placement: ['feed_4x5', 'stories_9x16'],
     hasModel: true,
     hasTextOverlay: true,
-    dynamicFields: ['BRAND_NAME', 'BRAND_COLOR_1', 'BRAND_VIBE', 'GENDER', 'HEADLINE', 'SUBHEADLINE'],
-    promptTemplate: `BRANDING RULES:
-Do not add any logo or text onto the garment unless Image 1 already shows a logo, graphic, or print on the fabric. If product has a print preserve it exactly. If plain keep plain. Brand name appears as small text overlay in corner of ad only — not on garment. Brand colors applied to text, buttons, overlays.
+    dynamicFields: ['BRAND_VIBE', 'GENDER'],
+    textConfig: {
+      brandPosition: 'top-left',
+      headlinePosition: 'top',
+      headlineStyle: 'bold-sans',
+      ctaStyle: 'pill-button',
+      overlayTheme: 'light-on-dark'
+    },
+    promptTemplate: `You are creating a lifestyle fashion advertisement photograph.
 
-Image 1 is the product from the merchant's Shopify store. Feature this exact product. Preserve the garment exactly as shown — same color, same fabric, same fit, same print or graphic if one exists on the product.
+IMAGE 1 is the exact product from the merchant's store. You MUST feature this exact garment.
 
-A [GENDER] model wearing this exact garment on their body. No added branding on garment.
+CRITICAL PRODUCT RULES:
+- The model must be WEARING this exact garment on their body
+- Preserve the garment exactly: same color, same fabric, same fit
+- If the product has a print, logo, or graphic on the fabric, preserve it exactly
+- If the product is plain, keep it plain - do NOT add any logos or graphics
+- The garment must be clearly visible and recognizable
 
-Setting: sunlit city street or café terrace. Warm natural daylight. Candid relaxed pose — walking, mid-movement, natural expression. Shallow depth of field, city softly blurred.
+SCENE REQUIREMENTS:
+- A [GENDER] model wearing this exact garment
+- Setting: sunlit city street or café terrace
+- Warm natural daylight, golden hour feel
+- Candid relaxed pose - walking or mid-movement
+- Natural authentic expression, not posed
+- Shallow depth of field, urban background softly blurred
+- [BRAND_VIBE] energy throughout
 
-Text in image:
-- Top left: '[BRAND_NAME]' small refined text.
-- Upper area: '[HEADLINE]' in bold modern white sans-serif. Transparent dark bar behind text for legibility.
-- Lower right: '[SUBHEADLINE]' in bold white caps, slightly smaller.
-- Bottom center: 'Shop Now' pill button in [BRAND_COLOR_1] with white text.
-
-[BRAND_VIBE] energy. Authentic not staged.
-Editorial lifestyle photography quality.
-4:5 vertical format.`
+OUTPUT: Editorial lifestyle photography, 4:5 vertical format, no text or graphics overlay.`
   },
 
   // -------------------------------------------
@@ -124,25 +158,34 @@ Editorial lifestyle photography quality.
     placement: ['feed_4x5', 'catalog'],
     hasModel: false,
     hasTextOverlay: true,
-    dynamicFields: ['BRAND_NAME', 'BRAND_COLOR_1', 'BRAND_COLOR_2', 'BRAND_VIBE', 'HEADLINE', 'PRODUCT_NAME', 'PRICE'],
-    promptTemplate: `BRANDING RULES:
-Do not add any logo or text onto the garment unless Image 1 already shows a logo, graphic, or print on the fabric. If product has a print preserve it exactly. If plain keep plain. Brand name appears as small text overlay in corner of ad only — not on garment. Brand colors applied to text, buttons, overlays.
+    dynamicFields: ['BRAND_VIBE'],
+    textConfig: {
+      brandPosition: 'top-left',
+      headlinePosition: 'top',
+      headlineStyle: 'elegant-serif',
+      ctaStyle: 'pill-button',
+      overlayTheme: 'dark-on-light'
+    },
+    promptTemplate: `You are creating a product-focused fashion advertisement photograph.
 
-Image 1 is the product from the merchant's Shopify store. Feature this exact product. Preserve the garment exactly as shown — same color, same fabric, same fit, same print or graphic if one exists on the product.
+IMAGE 1 is the exact product from the merchant's store. You MUST feature this exact garment.
 
-No model. Display this exact garment perfectly as the hero — folded naturally or hanging flat.
+CRITICAL PRODUCT RULES:
+- Display this EXACT garment as the hero of the image
+- Preserve the garment exactly: same color, same fabric, same details
+- If the product has a print, logo, or graphic on the fabric, preserve it exactly
+- If the product is plain, keep it plain - do NOT add any logos or graphics
+- Every seam, texture, and detail must be sharp and visible
 
-Background: seamless [BRAND_COLOR_1] or soft neutral gradient. Professional studio lighting. Every seam, texture and detail sharp and visible.
+SCENE REQUIREMENTS:
+- NO model - product only
+- Garment displayed beautifully: folded naturally OR hanging flat
+- Seamless studio background in soft neutral (white, cream, or light gray)
+- Professional studio lighting highlighting texture and details
+- Clean, minimal, premium feel
+- [BRAND_VIBE] aesthetic
 
-Text in image:
-- Top left: '[BRAND_NAME]' small elegant caps.
-- Top area: '[HEADLINE]' in large bold elegant serif or sans-serif. [BRAND_VIBE] tone.
-- Middle: '[PRODUCT_NAME]' in smaller refined typography.
-- Price: '[PRICE]' in medium weight.
-- Bottom: 'Shop Now' CTA in [BRAND_COLOR_2] button with white text.
-
-High-end commercial product photography.
-4:5 vertical format.`
+OUTPUT: High-end commercial product photography, 4:5 vertical format, no text or graphics overlay.`
   },
 
   // -------------------------------------------
@@ -151,29 +194,38 @@ High-end commercial product photography.
   {
     id: 'T04_PROMOTIONAL_SALE',
     name: 'Promotional Sale',
-    description: 'Product with bold sale or promo text overlay',
+    description: 'Product with dramatic lighting for sale emphasis',
     placement: ['feed_4x5', 'stories_9x16'],
     hasModel: false,
     hasTextOverlay: true,
-    dynamicFields: ['BRAND_NAME', 'BRAND_COLOR_1', 'BRAND_COLOR_2', 'PROMO_HEADLINE', 'OFFER_TEXT'],
-    promptTemplate: `BRANDING RULES:
-Do not add any logo or text onto the garment unless Image 1 already shows a logo, graphic, or print on the fabric. If product has a print preserve it exactly. If plain keep plain. Brand name appears as small text overlay in corner of ad only — not on garment. Brand colors applied to text, buttons, overlays.
+    dynamicFields: [],
+    textConfig: {
+      brandPosition: 'top-left',
+      headlinePosition: 'top',
+      headlineStyle: 'condensed',
+      ctaStyle: 'pill-button',
+      overlayTheme: 'light-on-dark'
+    },
+    promptTemplate: `You are creating a promotional fashion advertisement photograph.
 
-Image 1 is the product from the merchant's Shopify store. Feature this exact product. Preserve the garment exactly as shown — same color, same fabric, same fit, same print or graphic if one exists on the product.
+IMAGE 1 is the exact product from the merchant's store. You MUST feature this exact garment.
 
-No model. Display this exact garment attractively as the hero.
+CRITICAL PRODUCT RULES:
+- Display this EXACT garment as the hero of the image
+- Preserve the garment exactly: same color, same fabric, same details
+- If the product has a print, logo, or graphic on the fabric, preserve it exactly
+- If the product is plain, keep it plain - do NOT add any logos or graphics
+- Garment must be sharp and eye-catching
 
-Background: deep [BRAND_COLOR_1] or rich dark neutral. Dramatic product lighting. Garment sharp.
+SCENE REQUIREMENTS:
+- NO model - product only
+- Deep rich background (charcoal, navy, or burgundy)
+- Dramatic product lighting creating visual impact
+- Garment positioned attractively as the focal point
+- Bold, graphic, commercial feel
+- High contrast for scroll-stopping impact
 
-Text in image — the text IS the message:
-- Top left: '[BRAND_NAME]' small refined.
-- Top area: '[PROMO_HEADLINE]' in very large bold condensed white sans-serif. Full width. Visually dominant.
-- Below: '[OFFER_TEXT]' in bold white. Slightly smaller.
-- Garment visible centered below text.
-- Bottom: 'Shop Now →' CTA pill in [BRAND_COLOR_2].
-
-Bold graphic commercial fashion quality.
-4:5 vertical format.`
+OUTPUT: Bold commercial fashion photography, 4:5 vertical format, no text or graphics overlay.`
   },
 
   // -------------------------------------------
@@ -186,23 +238,35 @@ Bold graphic commercial fashion quality.
     placement: ['feed_4x5'],
     hasModel: false,
     hasTextOverlay: true,
-    dynamicFields: ['BRAND_NAME', 'BRAND_COLOR_1', 'BRAND_COLOR_2', 'BRAND_VIBE', 'HEADLINE'],
-    promptTemplate: `BRANDING RULES:
-Do not add any logo or text onto any garment unless Image 1 already shows a logo, graphic, or print on the fabric. If product has a print preserve it exactly. If plain keep plain. Brand name appears as small text overlay in corner of ad only — not on garment. Brand colors applied to text, buttons, overlays.
+    dynamicFields: ['BRAND_VIBE'],
+    textConfig: {
+      brandPosition: 'top-left',
+      headlinePosition: 'top',
+      headlineStyle: 'elegant-serif',
+      ctaStyle: 'text-arrow',
+      overlayTheme: 'dark-on-light'
+    },
+    promptTemplate: `You are creating a flat lay fashion advertisement photograph.
 
-Image 1 is the hero product from the merchant's Shopify store. Feature this exact product as the center of the flat lay. Preserve exactly as shown in Image 1.
+IMAGE 1 is the exact product from the merchant's store. This is the HERO item of the flat lay.
 
-Create an overhead flat lay photograph. Garment from Image 1 laid flat as center hero. Complement with unbranded accessories — shoes, bag, watch — arranged naturally around.
+CRITICAL PRODUCT RULES:
+- This EXACT garment must be the CENTER and HERO of the flat lay
+- Preserve the garment exactly: same color, same fabric, same details
+- If the product has a print, logo, or graphic on the fabric, preserve it exactly
+- If the product is plain, keep it plain - do NOT add any logos or graphics
+- The hero garment must be most prominent and clearly visible
 
-Surface: warm oak, marble, or linen matching [BRAND_VIBE]. Single botanical prop at edge. Nothing cluttered. Overhead camera angle perfectly flat. Even soft natural light. [BRAND_COLOR_1] tones throughout.
+SCENE REQUIREMENTS:
+- Overhead flat lay photograph, camera perfectly perpendicular
+- Hero garment from Image 1 laid flat as the CENTER piece
+- Complement with 2-3 unbranded accessories arranged naturally around it
+- Surface: warm oak wood, marble, or natural linen
+- Single botanical prop at edge (eucalyptus sprig, dried flower)
+- Even soft natural overhead light
+- [BRAND_VIBE] styling, nothing cluttered
 
-Text in image:
-- Top left: '[BRAND_NAME]' small refined.
-- Top area: '[HEADLINE]' in elegant refined serif. Dark charcoal or [BRAND_COLOR_1].
-- Bottom: 'Shop the Look →' CTA small in [BRAND_COLOR_2].
-
-Editorial flat lay photography quality.
-4:5 vertical format.`
+OUTPUT: Editorial flat lay photography, 4:5 vertical format, no text or graphics overlay.`
   },
 
   // -------------------------------------------
@@ -215,25 +279,34 @@ Editorial flat lay photography quality.
     placement: ['feed_4x5'],
     hasModel: true,
     hasTextOverlay: true,
-    dynamicFields: ['BRAND_NAME', 'BRAND_COLOR_1', 'BRAND_VIBE', 'GENDER', 'SEASON_LABEL', 'HEADLINE'],
-    promptTemplate: `BRANDING RULES:
-Do not add any logo or text onto the garment unless Image 1 already shows a logo, graphic, or print on the fabric. If product has a print preserve it exactly. If plain keep plain. Brand name appears as small text overlay in corner of ad only — not on garment. Brand colors applied to text, buttons, overlays.
+    dynamicFields: ['BRAND_VIBE', 'GENDER'],
+    textConfig: {
+      brandPosition: 'top-left',
+      headlinePosition: 'bottom',
+      headlineStyle: 'elegant-serif',
+      ctaStyle: 'minimal',
+      overlayTheme: 'light-on-dark'
+    },
+    promptTemplate: `You are creating a luxury editorial fashion advertisement photograph.
 
-Image 1 is the product from the merchant's Shopify store. Feature this exact product. Preserve the garment exactly as shown — same color, same fabric, same construction, same print or graphic if one exists.
+IMAGE 1 is the exact product from the merchant's store. You MUST feature this exact garment.
 
-A [GENDER] model wearing this exact garment on their body.
+CRITICAL PRODUCT RULES:
+- The model must be WEARING this exact garment on their body
+- Preserve the garment exactly: same color, same fabric, same construction
+- If the product has a print, logo, or graphic on the fabric, preserve it exactly
+- If the product is plain, keep it plain - do NOT add any logos or graphics
+- The garment must be the focal point of the composition
 
-Setting: architectural — marble interior, minimalist gallery, or luxury environment. Dramatic single light source. Deep shadows. Model: confident, authoritative, direct gaze. Portrait from chest up.
+SCENE REQUIREMENTS:
+- A [GENDER] model wearing this exact garment
+- Setting: architectural interior - marble, minimalist gallery, or luxury space
+- Dramatic single light source creating deep shadows
+- Portrait from chest up
+- Model: confident, authoritative, direct gaze at camera
+- [BRAND_VIBE] aesthetic, premium and aspirational
 
-Text in image — minimal and refined:
-- Top left: '[BRAND_NAME]' in small elegant serif caps. White on dark area.
-- Below brand: '[SEASON_LABEL]' in smaller italic serif. Cream color.
-- Lower area: '[HEADLINE]' in refined medium serif. Maximum 6 words.
-- 'Discover' CTA in tiny elegant caps. No button shape — just the word.
-
-Deep [BRAND_COLOR_1] tones.
-Luxury editorial photography quality.
-4:5 vertical format.`
+OUTPUT: Luxury editorial photography, 4:5 vertical format, no text or graphics overlay.`
   },
 
   // -------------------------------------------
@@ -246,25 +319,35 @@ Luxury editorial photography quality.
     placement: ['feed_4x5'],
     hasModel: true,
     hasTextOverlay: true,
-    dynamicFields: ['BRAND_NAME', 'BRAND_COLOR_1', 'BRAND_COLOR_2', 'BRAND_VIBE', 'GENDER', 'SEASON', 'SEASON_LABEL', 'HEADLINE'],
-    promptTemplate: `BRANDING RULES:
-Do not add any logo or text onto the garment unless Image 1 already shows a logo, graphic, or print on the fabric. If product has a print preserve it exactly. If plain keep plain. Brand name appears as small text overlay in corner of ad only — not on garment. Brand colors applied to text, buttons, overlays.
+    dynamicFields: ['BRAND_VIBE', 'GENDER', 'SEASON'],
+    textConfig: {
+      brandPosition: 'top-left',
+      headlinePosition: 'top',
+      headlineStyle: 'magazine',
+      ctaStyle: 'pill-button',
+      overlayTheme: 'auto'
+    },
+    promptTemplate: `You are creating a seasonal campaign fashion advertisement photograph.
 
-Image 1 is the product from the merchant's Shopify store. Feature this exact product. Preserve the garment exactly as shown — same color, same fabric, same fit, same print or graphic if one exists on the product.
+IMAGE 1 is the exact product from the merchant's store. You MUST feature this exact garment.
 
-A [GENDER] model wearing this exact garment OR garment displayed clean — whichever is most natural for this product type.
+CRITICAL PRODUCT RULES:
+- The model must be WEARING this exact garment on their body
+- Preserve the garment exactly: same color, same fabric, same fit
+- If the product has a print, logo, or graphic on the fabric, preserve it exactly
+- If the product is plain, keep it plain - do NOT add any logos or graphics
+- The garment must be clearly visible and styled appropriately for the season
 
-Setting evokes [SEASON] naturally through lighting and atmosphere.
+SCENE REQUIREMENTS:
+- A [GENDER] model wearing this exact garment
+- Setting evokes [SEASON] naturally through lighting and atmosphere
+- Spring: bright, fresh, blooming backgrounds
+- Summer: warm, sun-drenched, outdoor vibes
+- Autumn: warm tones, golden light, cozy feeling
+- Winter: cool tones, dramatic lighting, layered styling
+- Magazine editorial quality, [BRAND_VIBE] aesthetic
 
-Text in image — structured like a magazine:
-- Top left: '[BRAND_NAME]' small refined.
-- Top area: '[SEASON_LABEL]' in large elegant serif or bold caps. Visual anchor of the ad. Cream or white.
-- Middle: '[HEADLINE]' in clean sans-serif.
-- Bottom: 'Shop Now' CTA in [BRAND_COLOR_2].
-
-[BRAND_COLOR_1] palette direction.
-[BRAND_VIBE] aesthetic. Editorial and confident not promotional.
-4:5 vertical format.`
+OUTPUT: Seasonal campaign photography, 4:5 vertical format, no text or graphics overlay.`
   },
 
   // -------------------------------------------
@@ -273,28 +356,38 @@ Text in image — structured like a magazine:
   {
     id: 'T08_SOCIAL_PROOF',
     name: 'Social Proof Stamp',
-    description: 'Product with trust badge and review count overlay',
+    description: 'Clean product shot optimized for trust badge overlay',
     placement: ['feed_4x5'],
     hasModel: false,
     hasTextOverlay: true,
-    dynamicFields: ['BRAND_NAME', 'BRAND_COLOR_1', 'BRAND_COLOR_2', 'BRAND_VIBE', 'HEADLINE', 'PRODUCT_NAME', 'PROOF_TEXT'],
-    promptTemplate: `BRANDING RULES:
-Do not add any logo or text onto the garment unless Image 1 already shows a logo, graphic, or print on the fabric. If product has a print preserve it exactly. If plain keep plain. Brand name appears as small text overlay in corner of ad only — not on garment. Brand colors applied to text, buttons, overlays.
+    dynamicFields: ['BRAND_VIBE'],
+    textConfig: {
+      brandPosition: 'top-left',
+      headlinePosition: 'top',
+      headlineStyle: 'bold-sans',
+      ctaStyle: 'pill-button',
+      overlayTheme: 'dark-on-light'
+    },
+    promptTemplate: `You are creating a product-focused fashion advertisement photograph optimized for overlay graphics.
 
-Image 1 is the product from the merchant's Shopify store. Feature this exact product. Preserve the garment exactly as shown — same color, same fabric, same fit, same print or graphic if one exists on the product.
+IMAGE 1 is the exact product from the merchant's store. You MUST feature this exact garment.
 
-No model. Display this exact garment cleanly as hero on [BRAND_COLOR_1] or neutral background. Product perfectly lit and presented.
+CRITICAL PRODUCT RULES:
+- Display this EXACT garment cleanly as the hero
+- Preserve the garment exactly: same color, same fabric, same details
+- If the product has a print, logo, or graphic on the fabric, preserve it exactly
+- If the product is plain, keep it plain - do NOT add any logos or graphics
+- Product must be perfectly lit and presented
 
-Text in image:
-- Top left: '[BRAND_NAME]' small refined.
-- Top corner: Refined badge reading '[PROOF_TEXT]'. Must look like a real editorial trust badge. Tasteful. Gold and white. Not clipart.
-- Main headline: '[HEADLINE]' bold clear sans-serif. Dark charcoal.
-- '[PRODUCT_NAME]' smaller refined text.
-- Bottom: 'Shop Now' CTA in [BRAND_COLOR_2].
+SCENE REQUIREMENTS:
+- NO model - product only
+- Clean neutral background (white, cream, or soft gray)
+- Professional studio lighting
+- Garment displayed beautifully and clearly
+- Leave clear space in upper corners for badge overlays
+- [BRAND_VIBE] aesthetic, premium and trustworthy feel
 
-[BRAND_VIBE] aesthetic.
-Commercial fashion photography quality.
-4:5 vertical format.`
+OUTPUT: Commercial product photography, 4:5 vertical format, no text or graphics overlay.`
   },
 
   // -------------------------------------------
@@ -307,24 +400,35 @@ Commercial fashion photography quality.
     placement: ['feed_4x5'],
     hasModel: false,
     hasTextOverlay: true,
-    dynamicFields: ['BRAND_NAME', 'BRAND_COLOR_1', 'BRAND_COLOR_2', 'HEADLINE'],
-    promptTemplate: `BRANDING RULES:
-Do not add any logo or text onto the garment unless Image 1 already shows a logo, graphic, or print on the fabric. If product has a print preserve it exactly. If plain keep plain. Brand name appears as small text overlay in corner of ad only — not on garment. Brand colors applied to text, buttons, overlays.
+    dynamicFields: [],
+    textConfig: {
+      brandPosition: 'top-left',
+      headlinePosition: 'bottom',
+      headlineStyle: 'bold-sans',
+      ctaStyle: 'text-arrow',
+      overlayTheme: 'light-on-dark'
+    },
+    promptTemplate: `You are creating a detail-focused fashion advertisement photograph.
 
-Image 1 is the product from the merchant's Shopify store. Feature this exact product. Preserve the garment exactly as shown.
+IMAGE 1 is the exact product from the merchant's store. You MUST feature this exact garment's details.
 
-Create an extreme close-up focusing on the most interesting detail of this garment — stitching, button, zip pull, collar edge, fabric weave, or texture. No added branding. Fill most of the frame with this detail.
+CRITICAL PRODUCT RULES:
+- Show an EXTREME CLOSE-UP of this exact garment's most interesting detail
+- This could be: stitching, button, zipper pull, collar edge, fabric weave, texture
+- Preserve the garment exactly as shown in Image 1
+- If the product has a print or graphic, you may focus on that detail
+- The detail must be from THIS product, not a generic garment
 
-Dramatically sharp detail. Side lighting revealing texture depth. Deep [BRAND_COLOR_1] or dark neutral background. Rest of garment softly blurred behind.
+SCENE REQUIREMENTS:
+- Extreme macro/close-up photography
+- Fill 70%+ of the frame with the detail
+- Dramatically sharp focus on the detail
+- Side lighting to reveal texture and depth
+- Deep dark or neutral background
+- Rest of garment softly blurred behind the detail
+- Luxury quality craftsmanship feel
 
-Text in image:
-- Top left: '[BRAND_NAME]' small refined.
-- '[HEADLINE]' in clean bold sans-serif. References quality or craft. White or [BRAND_COLOR_2].
-- 'Shop Now' minimal CTA with arrow.
-
-Less text — the detail image does the work.
-Luxury product detail photography quality.
-4:5 vertical format.`
+OUTPUT: Luxury detail photography, 4:5 vertical format, no text or graphics overlay.`
   },
 
   // -------------------------------------------
@@ -337,29 +441,36 @@ Luxury product detail photography quality.
     placement: ['feed_4x5'],
     hasModel: true,
     hasTextOverlay: true,
-    dynamicFields: ['BRAND_NAME', 'BRAND_COLOR_1', 'BRAND_COLOR_2', 'BRAND_VIBE', 'GENDER', 'HEADLINE'],
-    promptTemplate: `BRANDING RULES:
-Do not add any logo or text onto the garment unless Image 1 already shows a logo, graphic, or print on the fabric. If product has a print preserve it exactly. If plain keep plain. Brand name appears as small text overlay in corner of ad only — not on garment. Brand colors applied to text, buttons, overlays.
+    dynamicFields: ['BRAND_VIBE', 'GENDER'],
+    textConfig: {
+      brandPosition: 'top-left',
+      headlinePosition: 'bottom',
+      headlineStyle: 'bold-sans',
+      ctaStyle: 'pill-button',
+      overlayTheme: 'light-on-dark'
+    },
+    promptTemplate: `You are creating a versatility showcase fashion advertisement photograph.
 
-Image 1 is the product from the merchant's Shopify store. Feature this exact product. Preserve the garment exactly as shown — same color, same fabric, same fit, same print or graphic if one exists on the product.
+IMAGE 1 is the exact product from the merchant's store. This SAME garment appears in ALL THREE panels.
 
-Three vertical panels side by side. In each panel a [GENDER] model wears this exact garment styled differently. No added branding.
+CRITICAL PRODUCT RULES:
+- The SAME exact garment from Image 1 must appear in all three panels
+- Preserve the garment exactly in each panel: same color, same fabric, same fit
+- If the product has a print, logo, or graphic, preserve it in all panels
+- If the product is plain, keep it plain in all panels
+- The garment must be clearly recognizable as the same item across all panels
 
-Panel 1 — 'Day': Casual relaxed styling.
-Panel 2 — 'Work': Smart elevated styling.
-Panel 3 — 'Evening': Occasion styling.
+SCENE REQUIREMENTS:
+- THREE vertical panels side by side (triptych layout)
+- A [GENDER] model wearing this exact garment in EACH panel
+- Panel 1 (left): Casual/Day styling - relaxed, everyday look
+- Panel 2 (center): Work/Smart styling - elevated, professional
+- Panel 3 (right): Evening/Occasion styling - dressed up
+- Clean studio background consistent across all panels
+- Consistent lighting throughout
+- [BRAND_VIBE] aesthetic
 
-Small label above each panel: 'Day' / 'Work' / 'Evening'
-Clean [BRAND_COLOR_1] studio background. Consistent lighting throughout.
-
-Text in image:
-- Top left: '[BRAND_NAME]' small refined.
-- Full-width text bar across bottom: '[HEADLINE]' in bold confident white sans-serif on dark bar.
-- 'Shop Now →' CTA in [BRAND_COLOR_2].
-
-[BRAND_VIBE] aesthetic.
-Commercial fashion photography quality.
-4:5 vertical format.`
+OUTPUT: Triptych fashion photography, 4:5 vertical format, no text or graphics overlay.`
   },
 
   // -------------------------------------------
@@ -368,31 +479,39 @@ Commercial fashion photography quality.
   {
     id: 'T11_SUSTAINABLE_STORY',
     name: 'Sustainable Story',
-    description: 'Product with eco credentials and natural styling',
+    description: 'Product with eco-friendly natural styling',
     placement: ['feed_4x5'],
     hasModel: false,
     hasTextOverlay: true,
-    dynamicFields: ['BRAND_NAME', 'BRAND_COLOR_1', 'BRAND_COLOR_2', 'HEADLINE', 'MATERIAL_CLAIM', 'PROCESS_CLAIM', 'ORIGIN_CLAIM'],
-    promptTemplate: `BRANDING RULES:
-Do not add any logo or text onto the garment unless Image 1 already shows a logo, graphic, or print on the fabric. If product has a print preserve it exactly. If plain keep plain. Brand name appears as small text overlay in corner of ad only — not on garment. Brand colors applied to text, buttons, overlays.
+    dynamicFields: [],
+    textConfig: {
+      brandPosition: 'top-left',
+      headlinePosition: 'top',
+      headlineStyle: 'elegant-serif',
+      ctaStyle: 'text-arrow',
+      overlayTheme: 'dark-on-light'
+    },
+    promptTemplate: `You are creating an eco-conscious fashion advertisement photograph.
 
-Image 1 is the product from the merchant's Shopify store. Feature this exact product. Preserve the garment exactly as shown — same color, same fabric, same fit, same print or graphic if one exists on the product.
+IMAGE 1 is the exact product from the merchant's store. You MUST feature this exact garment.
 
-Display this exact garment on a clean earthy natural surface — wood, stone, or linen. Soft natural overhead light. Single botanical prop placed naturally beside product.
+CRITICAL PRODUCT RULES:
+- Display this EXACT garment as the hero
+- Preserve the garment exactly: same color, same fabric, same details
+- If the product has a print, logo, or graphic on the fabric, preserve it exactly
+- If the product is plain, keep it plain - do NOT add any logos or graphics
+- The garment should look natural and authentic
 
-Text in image:
-- Top left: '[BRAND_NAME]' small refined.
-- Top: '[HEADLINE]' in clean natural sans-serif. Dark charcoal.
-- Side: 3 small refined eco badges:
-  🌱 '[MATERIAL_CLAIM]'
-  ♻️ '[PROCESS_CLAIM]'
-  📍 '[ORIGIN_CLAIM]'
-  Tiny clean typography. Tasteful not clipart.
-- Bottom: 'Shop Responsibly' CTA in [BRAND_COLOR_2].
+SCENE REQUIREMENTS:
+- NO model - product only
+- Natural, earthy surface: raw wood, stone, or natural linen
+- Soft natural overhead light (like daylight through a window)
+- Single botanical prop placed naturally beside product (eucalyptus, dried lavender, cotton branch)
+- Earth tone palette throughout
+- Honest, authentic, sustainable aesthetic
+- Nothing artificial or overly styled
 
-Earth tone palette.
-Honest and natural photography quality.
-4:5 vertical format.`
+OUTPUT: Natural product photography, 4:5 vertical format, no text or graphics overlay.`
   },
 
   // -------------------------------------------
@@ -405,26 +524,36 @@ Honest and natural photography quality.
     placement: ['feed_4x5', 'stories_9x16'],
     hasModel: false,
     hasTextOverlay: true,
-    dynamicFields: ['BRAND_NAME', 'BRAND_COLOR_2', 'HEADLINE', 'PRODUCT_NAME', 'PRICE'],
-    promptTemplate: `BRANDING RULES:
-Do not add any logo or text onto the garment unless Image 1 already shows a logo, graphic, or print on the fabric. If product has a print preserve it exactly. If plain keep plain. Brand name appears as small text overlay in corner of ad only — not on garment. Brand colors applied to text, buttons, overlays.
+    dynamicFields: [],
+    textConfig: {
+      brandPosition: 'top-left',
+      headlinePosition: 'top',
+      headlineStyle: 'condensed',
+      ctaStyle: 'pill-button',
+      overlayTheme: 'light-on-dark'
+    },
+    promptTemplate: `You are creating a bold, graphic fashion advertisement photograph.
 
-Image 1 is the product from the merchant's Shopify store. Feature this exact product. Preserve the garment exactly as shown — same color, same fabric, same fit, same print or graphic if one exists on the product.
+IMAGE 1 is the exact product from the merchant's store. You MUST feature this exact garment.
 
-No model. Display this exact garment as centered hero. No added branding on garment.
+CRITICAL PRODUCT RULES:
+- Display this EXACT garment as the centered hero
+- Preserve the garment exactly: same color, same fabric, same details
+- If the product has a print, logo, or graphic on the fabric, preserve it exactly
+- If the product is plain, keep it plain - do NOT add any logos or graphics
+- The garment must pop against the bold background
 
-Background: single vivid bold color chosen for maximum contrast to the garment — electric orange, wasabi green, shocking pink, lemon yellow, or vivid cobalt. Strong even studio lighting.
+SCENE REQUIREMENTS:
+- NO model - product only
+- Background: single VIVID bold color chosen for MAXIMUM CONTRAST to the garment
+- Color options: electric orange, wasabi green, hot pink, lemon yellow, cobalt blue
+- Choose the color that contrasts most with the garment's color
+- Strong even studio lighting
+- Product centered and sharp
+- Bold, graphic, scroll-stopping impact
+- High energy commercial feel
 
-Text in image:
-- Top left: '[BRAND_NAME]' small refined.
-- Top full width: '[HEADLINE]' in very large bold condensed white sans-serif. Maximum 4 words. Visually dominant.
-- Below garment: '[PRODUCT_NAME]' in white medium weight caps.
-  'Shop Now' CTA in [BRAND_COLOR_2] pill.
-- Small '[PRICE]' in white corner text.
-
-Bold background creates the scroll-stop.
-Graphic and confident.
-4:5 vertical format.`
+OUTPUT: Bold graphic product photography, 4:5 vertical format, no text or graphics overlay.`
   },
 
   // -------------------------------------------
@@ -437,26 +566,36 @@ Graphic and confident.
     placement: ['feed_4x5', 'stories_9x16'],
     hasModel: true,
     hasTextOverlay: true,
-    dynamicFields: ['BRAND_NAME', 'BRAND_COLOR_1', 'BRAND_COLOR_2', 'GENDER', 'HEADLINE', 'PRODUCT_NAME'],
-    promptTemplate: `BRANDING RULES:
-Do not add any logo or text onto the garment unless Image 1 already shows a logo, graphic, or print on the fabric. If product has a print preserve it exactly. If plain keep plain. Brand name appears as small text overlay in corner of ad only — not on garment. Brand colors applied to text, buttons, overlays.
+    dynamicFields: ['GENDER'],
+    textConfig: {
+      brandPosition: 'top-left',
+      headlinePosition: 'top',
+      headlineStyle: 'elegant-serif',
+      ctaStyle: 'text-arrow',
+      overlayTheme: 'light-on-dark'
+    },
+    promptTemplate: `You are creating a golden hour lifestyle fashion advertisement photograph.
 
-Image 1 is the product from the merchant's Shopify store. Feature this exact product. Preserve the garment exactly as shown — same color, same fabric, same fit, same print or graphic if one exists on the product.
+IMAGE 1 is the exact product from the merchant's store. You MUST feature this exact garment.
 
-A [GENDER] model wearing this exact garment on their body. No added branding on garment.
+CRITICAL PRODUCT RULES:
+- The model must be WEARING this exact garment on their body
+- Preserve the garment exactly: same color, same fabric, same fit
+- If the product has a print, logo, or graphic on the fabric, preserve it exactly
+- If the product is plain, keep it plain - do NOT add any logos or graphics
+- The garment must be clearly visible despite the backlit conditions
 
-Setting: outdoor golden hour — park, beach terrace, or open field. Late afternoon sun creating warm golden rim light from behind. Model looking away, relaxed, aspirational.
+SCENE REQUIREMENTS:
+- A [GENDER] model wearing this exact garment
+- Outdoor setting: park, beach, field, or terrace
+- GOLDEN HOUR lighting - late afternoon sun
+- Warm golden rim light from behind/side of model
+- Model looking away or candid, relaxed expression
+- Aspirational, dreamy, warm atmosphere
+- Amber and golden tones throughout
+- Lifestyle photography feel
 
-Text in image:
-- Top left: '[BRAND_NAME]' small refined.
-- Top area: '[HEADLINE]' in elegant medium weight serif. Warm cream. Subtle shadow.
-- Bottom: '[PRODUCT_NAME]' small light text.
-  'Shop Now' minimal CTA with arrow in [BRAND_COLOR_2].
-
-Warm amber golden tones throughout.
-[BRAND_COLOR_1] palette direction.
-Aspirational lifestyle photography quality.
-4:5 vertical format.`
+OUTPUT: Golden hour lifestyle photography, 4:5 vertical format, no text or graphics overlay.`
   },
 
   // -------------------------------------------
@@ -469,25 +608,36 @@ Aspirational lifestyle photography quality.
     placement: ['feed_4x5'],
     hasModel: true,
     hasTextOverlay: true,
-    dynamicFields: ['BRAND_NAME', 'BRAND_COLOR_1', 'SEASON_LABEL', 'HEADLINE'],
-    promptTemplate: `BRANDING RULES:
-Do not add any logo or text onto the garment unless Image 1 already shows a logo, graphic, or print on the fabric. If product has a print preserve it exactly. If plain keep plain. Brand name appears as small text overlay in corner of ad only — not on garment. Brand colors applied to text, buttons, overlays.
+    dynamicFields: [],
+    textConfig: {
+      brandPosition: 'top-left',
+      headlinePosition: 'bottom',
+      headlineStyle: 'magazine',
+      ctaStyle: 'minimal',
+      overlayTheme: 'light-on-dark'
+    },
+    promptTemplate: `You are creating a menswear magazine-style fashion advertisement photograph.
 
-Image 1 is the product from the merchant's Shopify store. Feature this exact product. Preserve the garment exactly as shown — same color, same fabric, same construction, same print or graphic if one exists.
+IMAGE 1 is the exact product from the merchant's store. You MUST feature this exact garment.
 
-A male model wearing this exact garment on his body. No added branding on garment.
+CRITICAL PRODUCT RULES:
+- The model must be WEARING this exact garment on his body
+- Preserve the garment exactly: same color, same fabric, same construction
+- If the product has a print, logo, or graphic on the fabric, preserve it exactly
+- If the product is plain, keep it plain - do NOT add any logos or graphics
+- The garment must be styled appropriately for premium menswear
 
-Setting: clean dark architectural interior. Strong single directional light. Deep shadows. Portrait from chest up. Direct confident gaze.
+SCENE REQUIREMENTS:
+- A MALE model wearing this exact garment
+- Setting: clean dark architectural interior
+- Strong single directional light creating dramatic shadows
+- Portrait from chest up
+- Direct, confident gaze at camera
+- Magazine cover quality composition
+- Premium menswear editorial aesthetic
+- Deep, rich, masculine color palette
 
-Text in image — magazine cover format:
-- Top left: '[BRAND_NAME]' in refined serif caps. Magazine masthead. Cream on dark.
-- Below: '[SEASON_LABEL]' in smaller italic serif. Warm cream.
-- Lower: '[HEADLINE]' in bold modern sans-serif. Confident and direct.
-- Bottom: 'Discover the Collection' in tiny elegant caps. No button.
-
-Deep [BRAND_COLOR_1] palette.
-Premium menswear magazine photography.
-4:5 vertical format.`
+OUTPUT: Premium menswear photography, 4:5 vertical format, no text or graphics overlay.`
   },
 
   // -------------------------------------------
@@ -500,26 +650,37 @@ Premium menswear magazine photography.
     placement: ['feed_4x5', 'stories_9x16'],
     hasModel: false,
     hasTextOverlay: true,
-    dynamicFields: ['BRAND_NAME', 'BRAND_COLOR_2', 'PRODUCT_NAME', 'DROP_LABEL', 'DATE_OR_SCARCITY'],
-    promptTemplate: `BRANDING RULES:
-Do not add any logo or text onto the garment unless Image 1 already shows a logo, graphic, or print on the fabric. If product has a print preserve it exactly. If plain keep plain. Brand name appears as small text overlay in corner of ad only — not on garment. Brand colors applied to text, buttons, overlays.
+    dynamicFields: [],
+    textConfig: {
+      brandPosition: 'top-left',
+      headlinePosition: 'top',
+      headlineStyle: 'condensed',
+      ctaStyle: 'pill-button',
+      overlayTheme: 'light-on-dark'
+    },
+    promptTemplate: `You are creating a dramatic product drop fashion advertisement photograph.
 
-Image 1 is the product from the merchant's Shopify store. Feature this exact product. Preserve the garment exactly as shown — same color, same fabric, same fit, same print or graphic if one exists on the product.
+IMAGE 1 is the exact product from the merchant's store. You MUST feature this exact garment.
 
-No model. Display this exact garment dramatically lit as the product hero. No added branding on garment. Garment emerges from darkness with a single overhead spotlight on fabric and silhouette.
+CRITICAL PRODUCT RULES:
+- Display this EXACT garment dramatically as the hero
+- Preserve the garment exactly: same color, same fabric, same details
+- If the product has a print, logo, or graphic on the fabric, preserve it exactly
+- If the product is plain, keep it plain - do NOT add any logos or graphics
+- The garment must look exclusive and desirable
 
-Background: near-black charcoal. High contrast. Cinematic. Garment sharp and detailed in light zone.
+SCENE REQUIREMENTS:
+- NO model - product only
+- Near-black charcoal background
+- Single overhead spotlight illuminating the garment
+- Garment emerging dramatically from darkness
+- High contrast, cinematic lighting
+- Product sharp and detailed in the light zone
+- Rest fades to shadow
+- Exclusive, raw, confident aesthetic
+- Product drop / limited release energy
 
-Text in image:
-- Top left: '[BRAND_NAME]' small refined.
-- Top: '[DROP_LABEL]' in large bold condensed all-caps white sans-serif. Dominant.
-- Center: '[PRODUCT_NAME]' in clean medium weight white text.
-- Lower: '[DATE_OR_SCARCITY]' in tiny white monospace.
-- Bottom: 'Get Yours' CTA. Exclusive tone. [BRAND_COLOR_2] accent if appropriate.
-
-Raw, confident, exclusive aesthetic.
-Moody dramatic photography quality.
-4:5 vertical format.`
+OUTPUT: Dramatic product photography, 4:5 vertical format, no text or graphics overlay.`
   }
 ];
 

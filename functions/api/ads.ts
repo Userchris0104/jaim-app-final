@@ -4,6 +4,7 @@
  */
 
 import { getStoreFromCookieOrFallback } from '../lib/store-cookie';
+import { getTemplateById } from '../lib/fashionTemplates';
 
 interface Env {
   DB: D1Database;
@@ -71,6 +72,15 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       });
     }
 
+    // Get full store record with colors
+    const storeRecord = await env.DB.prepare(
+      'SELECT store_name, primary_color, accent_color FROM stores WHERE id = ?'
+    ).bind(store.id).first<{ store_name: string | null; primary_color: string | null; accent_color: string | null }>();
+
+    const storeName = storeRecord?.store_name || store.store_name || 'Brand';
+    const primaryColor = storeRecord?.primary_color || '#1a1a1a';
+    const accentColor = storeRecord?.accent_color || '#1a1a1a';
+
     // Fetch all ads for this store
     const result = await env.DB.prepare(`
       SELECT
@@ -97,6 +107,22 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
       const headline = ad.headline || ad.ad_headline || 'Untitled Ad';
       const imageUrl = ad.image_url || ad.thumbnail_url || ad.product_image;
       const format = ad.format === 'square' || ad.video_style === 'static_image' ? 'static' : 'carousel';
+
+      // Build text overlay data from template
+      let textOverlay = null;
+      if (ad.template_id) {
+        const template = getTemplateById(ad.template_id);
+        if (template?.textConfig) {
+          textOverlay = {
+            brandName: storeName,
+            headline: headline,
+            cta: ad.call_to_action || 'Shop Now',
+            theme: template.textConfig.overlayTheme || 'light-on-dark',
+            primaryColor: primaryColor,
+            accentColor: accentColor,
+          };
+        }
+      }
 
       return {
         id: ad.id,
@@ -132,6 +158,8 @@ export const onRequestGet: PagesFunction<Env> = async (context) => {
         surfaceUsed: ad.surface_used || null,
         isStyleRotation: ad.is_style_rotation === 1,
         isStyleExperiment: ad.is_style_experiment === 1,
+        // Text overlay for client-side rendering
+        textOverlay,
         // Mock performance data
         ...mockData,
       };

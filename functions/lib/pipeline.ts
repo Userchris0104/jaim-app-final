@@ -29,6 +29,7 @@
 import type {
   Env,
   ProductRecord,
+  StoreRecord,
   BrandDNA,
   ProductStyleProfile,
   AdVariant,
@@ -54,7 +55,7 @@ import { getProductStyle } from './productStyle';
 import { generateScenesParallel, generateSceneWithTemplate, type ExtendedSceneResult, type TemplateGenerationInput } from './sceneGeneration';
 import { generateCopyForVariants } from './copyGeneration';
 import { getVariantType, requiresTextToImage, isModelWearingVariant, type VariantType } from './promptVariation';
-import { getTemplateById, type TemplateId } from './fashionTemplates';
+import { getTemplateById, type TemplateId, type TextOverlayConfig } from './fashionTemplates';
 import { selectTemplatesForProduct, recordTemplateUsage, type SelectedTemplate } from './templateSelector';
 
 // clean_image_url deprecated — Bria RMBG removed from pipeline
@@ -527,7 +528,16 @@ async function runTemplateBasedPipeline(
       isChallenger: false,
       confidenceLevel: phaseResult.confidence,
       templateId,
-      templateName: template.name
+      templateName: template.name,
+      // Text overlay data for frontend rendering
+      textOverlay: {
+        brandName: store?.store_name || brandDna.brand_name || 'Brand',
+        headline,
+        cta: variantCopy?.cta || 'Shop Now',
+        theme: template.textConfig?.overlayTheme || 'light-on-dark',
+        primaryColor: store?.primary_color || brandDna.identity.primary_palette[0] || '#1a1a1a',
+        accentColor: store?.accent_color || brandDna.identity.accent_palette[0] || '#1a1a1a'
+      }
     }]
   };
 }
@@ -688,6 +698,10 @@ export async function runSmartTemplatePipeline(
         result.selected.templateId
       ).run();
 
+      // Get template for text overlay config
+      const template = getTemplateById(result.selected.templateId);
+      const textOverlayConfig = template?.textConfig;
+
       variants.push({
         id: adId,
         variant: result.variant,
@@ -705,7 +719,16 @@ export async function runSmartTemplatePipeline(
         isChallenger: result.selected.isUntested,
         confidenceLevel: 'medium',
         templateId: result.selected.templateId,
-        templateName: result.selected.templateName
+        templateName: result.selected.templateName,
+        // Text overlay data for frontend rendering
+        textOverlay: {
+          brandName: store.store_name || brandDna.brand_name || 'Brand',
+          headline: result.copy?.headline || product.title,
+          cta: result.copy?.cta || 'Shop Now',
+          theme: textOverlayConfig?.overlayTheme || 'light-on-dark',
+          primaryColor: store.primary_color || brandDna.identity.primary_palette[0] || '#1a1a1a',
+          accentColor: store.accent_color || brandDna.identity.accent_palette[0] || '#1a1a1a'
+        }
       });
     }
 

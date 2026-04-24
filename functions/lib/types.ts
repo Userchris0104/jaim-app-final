@@ -478,6 +478,15 @@ export interface GenerateAdResponse {
     // Template system fields
     templateId?: string;
     templateName?: string;
+    // Text overlay composition spec (for frontend rendering)
+    textOverlay?: {
+      brandName: string;
+      headline: string;
+      cta: string;
+      theme: 'light-on-dark' | 'dark-on-light' | 'auto';
+      primaryColor: string;
+      accentColor: string;
+    };
     // Legacy creative evolution fields
     variantType?: string;
     atmosphereUsed?: string;
